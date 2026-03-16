@@ -19,7 +19,6 @@ const INITIAL_CONTACTS: Contact[] = [
   { id: '3', name: 'Emergency', phoneNumber: '112' },
 ];
 
-// Audio feedback assets
 const SUCCESS_SOUND = 'https://actions.google.com/sounds/v1/alarms/beep_short.ogg';
 const ERROR_SOUND = 'https://actions.google.com/sounds/v1/alarms/bugle_tune.ogg';
 
@@ -37,11 +36,10 @@ export const VoicePal: React.FC = () => {
   const recognitionRef = useRef<any>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const feedbackAudioRef = useRef<HTMLAudioElement | null>(null);
+  const hasSpokenWelcome = useRef(false);
   
-  // In-memory cache for repeated voice responses
   const voiceCache = useRef<Map<string, string>>(new Map());
 
-  // Initialize Speech Services
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -98,9 +96,7 @@ export const VoicePal: React.FC = () => {
       if (audioUrl) {
         audioRef.current.src = audioUrl;
         audioRef.current.onended = () => {
-          if (appState !== 'success' && appState !== 'error') {
-            setAppState('idle');
-          }
+          setAppState(prev => (prev !== 'success' && prev !== 'error' ? 'idle' : prev));
         };
         audioRef.current.onerror = () => {
           console.warn('Audio play error, falling back to browser synthesis');
@@ -116,7 +112,7 @@ export const VoicePal: React.FC = () => {
       console.error('TTS Flow Error:', error);
       browserFallbackSpeak(text, lang);
     }
-  }, [browserFallbackSpeak, appState]);
+  }, [browserFallbackSpeak]);
 
   const selectLanguage = useCallback((lang: SupportedLanguage | null) => {
     setSelectedLanguage(lang);
@@ -134,6 +130,7 @@ export const VoicePal: React.FC = () => {
       
       setTimeout(() => speak(welcome, lang), 100);
     } else {
+      hasSpokenWelcome.current = false;
       setTimeout(() => speak("Returning to language selection. Please choose English, Zulu, or Sesotho.", "en-US"), 100);
     }
   }, [speak]);
@@ -262,7 +259,7 @@ export const VoicePal: React.FC = () => {
       };
 
       recognitionRef.current.onend = () => {
-        if (appState === 'listening') setAppState('idle');
+        setAppState(prev => prev === 'listening' ? 'idle' : prev);
       };
     } else if (appState === 'listening') {
       recognitionRef.current.stop();
@@ -271,9 +268,10 @@ export const VoicePal: React.FC = () => {
   }, [appState, handleIntent, isSupported, selectedLanguage, speak]);
 
   useEffect(() => {
-    if (!selectedLanguage && isSupported) {
+    if (!selectedLanguage && isSupported && !hasSpokenWelcome.current) {
       const timer = setTimeout(() => {
         speak("Welcome to Voice Pal. Please say your language: English, Zulu, or Sesotho. Or tap the screen to select.", "en-US");
+        hasSpokenWelcome.current = true;
       }, 1000);
       return () => clearTimeout(timer);
     }

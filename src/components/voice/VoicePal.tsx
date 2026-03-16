@@ -211,8 +211,18 @@ export const VoicePal: React.FC = () => {
   const handleQuickAction = (action: 'call' | 'sms' | 'airtime') => {
     if (!selectedLanguage) return;
     
+    if (action === 'call') {
+      const testNumber = "+27218796297";
+      let message = `Calling ${testNumber}`;
+      if (selectedLanguage === 'zu-ZA') message = `Ishaya inombolo ${testNumber}`;
+      if (selectedLanguage === 'st-ZA') message = `Ea letsetsa nomoro ea ${testNumber}`;
+      
+      speak(message, selectedLanguage);
+      setActiveCall({ contact: testNumber });
+      return;
+    }
+    
     let prompt = "";
-    if (action === 'call') prompt = selectedLanguage === 'en-US' ? "Who would you like to call?" : selectedLanguage === 'zu-ZA' ? "Ubani ofuna ukumshayela ucingo?" : "O batla ho letsetsa mang?";
     if (action === 'sms') prompt = selectedLanguage === 'en-US' ? "Who should I message?" : selectedLanguage === 'zu-ZA' ? "Ubani okufanele ngimthumelele umlayezo?" : "Ke thumele molaetsa ho mang?";
     if (action === 'airtime') prompt = selectedLanguage === 'en-US' ? "How much airtime would you like?" : selectedLanguage === 'zu-ZA' ? "Ufuna i-airtime engakanani?" : "O batla airtime e kae?";
     

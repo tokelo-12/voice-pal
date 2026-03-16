@@ -60,39 +60,42 @@ const interpretVoiceCommandPrompt = ai.definePrompt({
   },
   prompt: `You are VoicePal, an AI assistant for visually impaired users. Your goal is to interpret spoken commands in English, isiZulu, or Sesotho.
 
-Identify the intent and extract details. 
+Identify the intent and extract details accurately. Be robust to variations in phrasing.
 
-IMPORTANT: If the user provides message content for an SMS, extract it EXACTLY as spoken in the original language (Sesotho, isiZulu, or English). DO NOT translate the message content into English or any other language.
+KNOWN CONTACTS: Mom, Sindi, Sello, Emergency.
 
 Intents and Keywords:
 - 'make_call': 
-    * English: "call", "phone", "dial"
-    * Sesotho: "letsa", "letsetsa", "founu"
-    * Zulu: "shayela", "fona", "shaya"
+    * English: "call", "phone", "dial", "get me on the phone with"
+    * Sesotho: "letsa", "letsetsa", "founu", "shaya"
+    * Zulu: "shayela", "fona", "shaya", "fonela"
 - 'send_sms': 
-    * English: "message", "sms", "text", "send message"
-    * Sesotho: "molaetsa", "thumela molaetsa"
-    * Zulu: "umyalezo", "thumela umyalezo"
+    * English: "message", "sms", "text", "send message", "tell"
+    * Sesotho: "molaetsa", "thumela molaetsa", "molaetsetsa"
+    * Zulu: "umyalezo", "thumela umyalezo", "thumelela"
 - 'buy_airtime': 
-    * English: "airtime", "data", "recharge"
+    * English: "airtime", "data", "recharge", "top up"
     * Sesotho: "reka airtime", "reka data"
     * Zulu: "thenga i-airtime", "thenga idata"
 - 'change_language': 
-    * English: "change language", "go back", "select language"
-    * Sesotho: "fetola puo", "puo"
-    * Zulu: "shintsha ulimi", "ulimi"
-- 'unknown': If no clear intent is found.
+    * English: "change language", "go back", "select language", "different language"
+    * Sesotho: "fetola puo", "puo", "puo e nngoe"
+    * Zulu: "shintsha ulimi", "ulimi", "olunye ulimi"
+- 'unknown': If the command is completely unrelated or ambiguous.
 
-Details extraction:
-- 'make_call': extract 'phoneNumber' or 'contactName'. If the user says "call me", use "+27218796297".
-- 'send_sms': extract 'phoneNumber'/'contactName' and 'message'. CRITICAL: Extract the message in its original spoken language (Sesotho, isiZulu, or English).
-- 'buy_airtime': extract 'amount' (number) and 'recipient'.
+CRITICAL INSTRUCTIONS:
+1. Normalization: If the user says "Call Mom" or "Calling Mom" or "Please call Mom", the contactName should be "Mom". Remove prefixes like "u-" in Zulu names if it's clear it's a prefix (e.g., "uSindi" becomes "Sindi").
+2. SMS Content: Extract the message EXACTLY as spoken. DO NOT translate message content.
+3. Language Detection: The user might mix languages. Prioritize the core action.
 
 Examples:
+- "Call Mom" -> {"intent": "make_call", "details": {"contactName": "Mom"}}
 - "Ngifuna ukushayela uSello" -> {"intent": "make_call", "details": {"contactName": "Sello"}}
+- "Letsetsa Sindi" -> {"intent": "make_call", "details": {"contactName": "Sindi"}}
 - "Thumela umyalezo ho Mom o re ke tseleng" -> {"intent": "send_sms", "details": {"contactName": "Mom", "message": "ke tseleng"}}
 - "Reka airtime ea mashome a mabeli" -> {"intent": "buy_airtime", "details": {"amount": 20}}
-- "Send an SMS to Mom saying I will be late" -> {"intent": "send_sms", "details": {"contactName": "Mom", "message": "I will be late"}}
+- "Tell Sindi I am coming" -> {"intent": "send_sms", "details": {"contactName": "Sindi", "message": "I am coming"}}
+- "I want to change ulimi" -> {"intent": "change_language", "details": {}}
 
 Voice Command: {{{command}}}`
 });

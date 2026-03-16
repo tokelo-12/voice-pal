@@ -258,7 +258,13 @@ export const VoicePal: React.FC = () => {
       
       if (result.intent === 'make_call') {
         const contactName = result.details.contactName;
-        const matchedContact = contacts.find(c => c.name.toLowerCase() === contactName?.toLowerCase());
+        // Improved contact matching: check for fuzzy matches or common variations
+        const matchedContact = contacts.find(c => {
+          const name = c.name.toLowerCase();
+          const target = contactName?.toLowerCase() || '';
+          return name === target || target.includes(name) || name.includes(target);
+        });
+        
         const phoneNumber = matchedContact?.phoneNumber || result.details.phoneNumber;
         const finalName = matchedContact?.name || contactName || "Unknown Contact";
 
@@ -281,7 +287,12 @@ export const VoicePal: React.FC = () => {
         }
       } else if (result.intent === 'send_sms') {
         const contactName = result.details.contactName;
-        const matchedContact = contacts.find(c => c.name.toLowerCase() === contactName?.toLowerCase());
+        const matchedContact = contacts.find(c => {
+          const name = c.name.toLowerCase();
+          const target = contactName?.toLowerCase() || '';
+          return name === target || target.includes(name) || name.includes(target);
+        });
+        
         const phoneNumber = matchedContact?.phoneNumber || result.details.phoneNumber;
         const message = result.details.message;
 

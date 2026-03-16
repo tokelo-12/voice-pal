@@ -15,12 +15,21 @@ type SupportedLanguage = 'en-US' | 'zu-ZA' | 'st-ZA';
 
 const INITIAL_CONTACTS: Contact[] = [
   { id: '1', name: 'Mom', phoneNumber: '+27644914275' },
+  { id: '1', name: 'Sindi', phoneNumber: '+27716828358' },
   { id: '2', name: 'Sello', phoneNumber: '0831234567' },
   { id: '3', name: 'Emergency', phoneNumber: '112' },
 ];
 
 const SUCCESS_SOUND = 'https://actions.google.com/sounds/v1/alarms/beep_short.ogg';
 const ERROR_SOUND = 'https://actions.google.com/sounds/v1/alarms/bugle_tune.ogg';
+
+type PendingAction = {
+  type: 'sms' | 'call' | 'airtime';
+  phoneNumber?: string;
+  contactName?: string;
+  message?: string;
+  amount?: number;
+};
 
 export const VoicePal: React.FC = () => {
   const [appState, setAppState] = useState<BlobState>('idle');
@@ -32,6 +41,7 @@ export const VoicePal: React.FC = () => {
   const [showContacts, setShowContacts] = useState(false);
   const [contacts] = useState<Contact[]>(INITIAL_CONTACTS);
   const [lastActionStatus, setLastActionStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
   
   const recognitionRef = useRef<any>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -130,6 +140,7 @@ export const VoicePal: React.FC = () => {
     setActiveCall(null);
     setShowContacts(false);
     setLastActionStatus('idle');
+    setPendingAction(null);
     
     if (lang) {
       let welcome = "";
@@ -137,7 +148,6 @@ export const VoicePal: React.FC = () => {
       if (lang === 'zu-ZA') welcome = "isiZulu sikhethiwe. Siyakwamukela ku-Voice Pal. Thinta isikrini ukuze ukhulume.";
       if (lang === 'st-ZA') welcome = "Sesotho se khethiloe. Re u amohela ho Voice Pal. Tobetsa skrine ho bua.";
       
-      // Reset welcome flag only when entering a language
       hasSpokenWelcome.current = true;
       setTimeout(() => speak(welcome, lang), 100);
     } else {
@@ -177,6 +187,35 @@ export const VoicePal: React.FC = () => {
     setLastActionStatus('idle');
     
     try {
+      // If we're waiting for a specific piece of information (like a message)
+      if (pendingAction) {
+        if (pendingAction.type === 'sms' && pendingAction.phoneNumber && !pendingAction.message) {
+          const smsResult = await initiateAfricaTalkingSms(pendingAction.phoneNumber, text);
+          if (smsResult.success) {
+            setAppState('success');
+            setLastActionStatus('success');
+            playFeedbackSound('success');
+            setPendingAction(null);
+            
+            let msg = `Success! Message sent.`;
+            if (selectedLanguage === 'zu-ZA') msg = `Kuphumelele! Umlayezo uthunyelwe.`;
+            if (selectedLanguage === 'st-ZA') msg = `Katleho! Molaetsa o rometsoe.`;
+            speak(msg, selectedLanguage);
+          } else {
+            setAppState('error');
+            setLastActionStatus('error');
+            playFeedbackSound('error');
+            setPendingAction(null);
+            
+            let msg = `I'm sorry, the message failed to send.`;
+            if (selectedLanguage === 'zu-ZA') msg = `Ngiyaxolisa, umlayezo wehlulekile ukuthunyelwa.`;
+            if (selectedLanguage === 'st-ZA') msg = `Ke maswabi, molaetsa o hlolehile ho romelloa.`;
+            speak(msg, selectedLanguage);
+          }
+          return;
+        }
+      }
+
       const result = await interpretVoiceCommand({ command: text });
       
       if (result.intent === 'make_call') {
@@ -185,6 +224,7 @@ export const VoicePal: React.FC = () => {
         
         if (!matchedContact && !result.details.phoneNumber) {
           setShowContacts(true);
+          setPendingAction({ type: 'call' });
           let msg = "Who would you like to call?";
           if (selectedLanguage === 'zu-ZA') msg = "Ubani ofuna ukumshayela ucingo?";
           if (selectedLanguage === 'st-ZA') msg = "O batla ho letsetsa mang?";
@@ -200,6 +240,7 @@ export const VoicePal: React.FC = () => {
           speak(msg, selectedLanguage);
           setActiveCall({ contact: finalName });
           initiateAfricaTalkingCall(phoneNumber);
+          setPendingAction(null);
         }
       } else if (result.intent === 'send_sms') {
         const contactName = result.details.contactName;
@@ -209,46 +250,39 @@ export const VoicePal: React.FC = () => {
 
         if (!phoneNumber) {
           setShowContacts(true);
+          setPendingAction({ type: 'sms' });
           let msg = "Who would you like to message?";
           if (selectedLanguage === 'zu-ZA') msg = "Ubani ofuna ukumthumelela umlayezo?";
           if (selectedLanguage === 'st-ZA') msg = "O batla ho thumelela mang molaetsa?";
           speak(msg, selectedLanguage, true);
         } else if (!message) {
+          setPendingAction({ type: 'sms', phoneNumber, contactName: matchedContact?.name || contactName });
           let msg = `What message would you like to send?`;
           if (selectedLanguage === 'zu-ZA') msg = `Ufuna ukuthumela muphi umlayezo?`;
           if (selectedLanguage === 'st-ZA') msg = `O batla ho thumela molaetsa ofe?`;
           speak(msg, selectedLanguage, true);
         } else {
           const smsResult = await initiateAfricaTalkingSms(phoneNumber, message);
-          
           if (smsResult.success) {
             setAppState('success');
             setLastActionStatus('success');
             playFeedbackSound('success');
+            setPendingAction(null);
             
             let msg = `Success! Message sent.`;
             if (selectedLanguage === 'zu-ZA') msg = `Kuphumelele! Umlayezo uthunyelwe.`;
             if (selectedLanguage === 'st-ZA') msg = `Katleho! Molaetsa o rometsoe.`;
-            
             speak(msg, selectedLanguage);
-            setTimeout(() => {
-              setAppState('idle');
-              setLastActionStatus('idle');
-            }, 5000);
           } else {
             setAppState('error');
             setLastActionStatus('error');
             playFeedbackSound('error');
+            setPendingAction(null);
             
             let msg = `I'm sorry, the message failed to send.`;
             if (selectedLanguage === 'zu-ZA') msg = `Ngiyaxolisa, umlayezo wehlulekile ukuthunyelwa.`;
             if (selectedLanguage === 'st-ZA') msg = `Ke maswabi, molaetsa o hlolehile ho romelloa.`;
-            
             speak(msg, selectedLanguage);
-            setTimeout(() => {
-              setAppState('idle');
-              setLastActionStatus('idle');
-            }, 5000);
           }
         }
       } else if (result.intent === 'buy_airtime') {
@@ -267,7 +301,7 @@ export const VoicePal: React.FC = () => {
       playFeedbackSound('error');
       speak("I encountered an error processing your request. Please try again.", selectedLanguage, true);
     }
-  }, [selectedLanguage, speak, selectLanguage, contacts, playFeedbackSound]);
+  }, [selectedLanguage, speak, selectLanguage, contacts, playFeedbackSound, pendingAction]);
 
   const toggleListening = useCallback(() => {
     if (!recognitionRef.current || !isSupported || !selectedLanguage) return;
@@ -320,6 +354,7 @@ export const VoicePal: React.FC = () => {
 
     if (action === 'call' || action === 'contacts') {
       setShowContacts(true);
+      setPendingAction({ type: action === 'call' ? 'call' : 'call' }); // reuse list for both
       let msg = "Showing your contacts.";
       if (selectedLanguage === 'zu-ZA') msg = "Ngibonisa oxhumana nabo.";
       if (selectedLanguage === 'st-ZA') msg = "Ke u bontša mabitso a hao.";
@@ -329,10 +364,12 @@ export const VoicePal: React.FC = () => {
     
     let prompt = "";
     if (action === 'sms') {
+      setPendingAction({ type: 'sms' });
       if (selectedLanguage === 'en-US') prompt = "Who should I message?";
       else if (selectedLanguage === 'zu-ZA') prompt = "Ubani okufanele ngimthumelele umlayezo?";
       else prompt = "Ke thumele molaetsa ho mang?";
     } else if (action === 'airtime') {
+      setPendingAction({ type: 'airtime' });
       if (selectedLanguage === 'en-US') prompt = "How much airtime would you like?";
       else if (selectedLanguage === 'zu-ZA') prompt = "Ufuna i-airtime engakanani?";
       else prompt = "O batla airtime e kae?";
@@ -349,9 +386,11 @@ export const VoicePal: React.FC = () => {
     speak(msg, selectedLanguage!);
     setActiveCall({ contact: contact.name });
     initiateAfricaTalkingCall(contact.phoneNumber);
+    setPendingAction(null);
   };
 
   const handleContactSms = (contact: Contact) => {
+    setPendingAction({ type: 'sms', phoneNumber: contact.phoneNumber, contactName: contact.name });
     let msg = `Say your message for ${contact.name}.`;
     if (selectedLanguage === 'zu-ZA') msg = `Khuluma umlayezo wakho we ${contact.name}.`;
     if (selectedLanguage === 'st-ZA') msg = `Bua molaetsa oa hau oa ${contact.name}.`;
@@ -465,28 +504,32 @@ export const VoicePal: React.FC = () => {
           className="flex flex-col h-28 gap-3 bg-secondary hover:bg-primary/20 border-2 border-primary/10 rounded-[2rem] group"
         >
           <Phone className="w-8 h-8 text-primary group-hover:scale-110 transition-transform" />
-          <span className="font-bold text-base">CALL</span>
+          <span className="font-bold text-base uppercase">
+            {selectedLanguage === 'zu-ZA' ? 'SHAYELA' : selectedLanguage === 'st-ZA' ? 'LETSA' : 'CALL'}
+          </span>
         </Button>
         <Button
           onClick={() => handleQuickAction('contacts')}
           className="flex flex-col h-28 gap-3 bg-secondary hover:bg-primary/20 border-2 border-primary/10 rounded-[2rem] group"
         >
           <Users className="w-8 h-8 text-primary group-hover:scale-110 transition-transform" />
-          <span className="font-bold text-base">CONTACTS</span>
+          <span className="font-bold text-base uppercase">
+            {selectedLanguage === 'zu-ZA' ? 'OXHUMANA' : selectedLanguage === 'st-ZA' ? 'MABITSO' : 'CONTACTS'}
+          </span>
         </Button>
         <Button
           onClick={() => handleQuickAction('sms')}
           className="flex flex-col h-28 gap-3 bg-secondary hover:bg-primary/20 border-2 border-primary/10 rounded-[2rem] group"
         >
           <MessageSquare className="w-8 h-8 text-primary group-hover:scale-110 transition-transform" />
-          <span className="font-bold text-base">SMS</span>
+          <span className="font-bold text-base uppercase">SMS</span>
         </Button>
         <Button
           onClick={() => handleQuickAction('airtime')}
           className="flex flex-col h-28 gap-3 bg-secondary hover:bg-primary/20 border-2 border-primary/10 rounded-[2rem] group"
         >
           <CreditCard className="w-8 h-8 text-primary group-hover:scale-110 transition-transform" />
-          <span className="font-bold text-base">AIRTIME</span>
+          <span className="font-bold text-base uppercase">AIRTIME</span>
         </Button>
       </div>
 
@@ -505,7 +548,7 @@ export const VoicePal: React.FC = () => {
             {lastActionStatus === 'success' ? 'Success' : lastActionStatus === 'error' ? 'Failure' : 'Status'}
           </p>
           <p className="text-foreground text-base font-medium truncate">
-            {transcript ? `"${transcript}"` : lastActionStatus === 'success' ? "Message sent!" : lastActionStatus === 'error' ? "Action failed" : "Ready for command"}
+            {transcript ? `"${transcript}"` : lastActionStatus === 'success' ? "Action complete!" : lastActionStatus === 'error' ? "Action failed" : "Ready for command"}
           </p>
         </div>
       </div>

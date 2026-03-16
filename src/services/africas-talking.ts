@@ -154,24 +154,43 @@ export async function initiateAfricaTalkingAirtime(phoneNumber: string, amount: 
     const data = await response.json();
     
     /**
-     * Expected structure:
+     * Structure based on sample:
      * {
      *   "errorMessage": "None",
      *   "numSent": 1,
-     *   "totalAmount": "ZAR 10.0000",
-     *   "totalDiscount": "ZAR 0.4000",
-     *   "responses": [...]
+     *   "totalAmount": "KES 1000.0000",
+     *   "totalDiscount": "KES 40.0000",
+     *   "responses": [
+     *     {
+     *       "phoneNumber": "+254711XXXYYY",
+     *       "errorMessage": "None",
+     *       "amount": "KES 1000.0000",
+     *       "status": "Sent",
+     *       "requestId": "...",
+     *       "discount": "..."
+     *     }
+     *   ]
      * }
      */
+    
+    // Check top level error
     if (data.errorMessage && data.errorMessage !== 'None') {
+      console.error("Africa's Talking Airtime Top Level Error:", data.errorMessage);
       return { success: false, error: data.errorMessage };
     }
 
+    // Check individual responses
     const firstResponse = data.responses?.[0];
-    if (firstResponse && firstResponse.status !== 'Sent' && firstResponse.status !== 'Success') {
+    if (!firstResponse) {
+      return { success: false, error: 'No response received from airtime service' };
+    }
+
+    if (firstResponse.status !== 'Sent' && firstResponse.status !== 'Success') {
+      console.error("Africa's Talking Airtime Detail Error:", firstResponse.errorMessage);
       return { success: false, error: firstResponse.errorMessage || 'Failed to send airtime' };
     }
 
+    console.log('Africa\'s Talking Airtime Sent Successfully:', firstResponse.requestId);
     return { success: true, data };
   } catch (error) {
     console.error("Africa's Talking Airtime Exception:", error);

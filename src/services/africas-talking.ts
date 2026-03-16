@@ -36,14 +36,21 @@ export async function initiateAfricaTalkingCall(to: string) {
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`Africa's Talking API Error: ${response.status} - ${errorText}`);
+      throw new Error(`Africa's Talking API Network Error: ${response.status} - ${errorText}`);
     }
 
     const data = await response.json();
-    console.log('Africa\'s Talking Call Initiated:', data);
-    return { success: true, data };
+    
+    // Handle the specific response format provided: { entries: [...], errorMessage: "None" }
+    if (data.errorMessage && data.errorMessage !== 'None' && data.errorMessage !== '') {
+      console.error("Africa's Talking Business Error:", data.errorMessage);
+      return { success: false, error: data.errorMessage };
+    }
+
+    console.log('Africa\'s Talking Call Initiated Successfully:', data.entries);
+    return { success: true, entries: data.entries };
   } catch (error) {
-    console.error("Africa's Talking Call Error:", error);
-    return { success: false, error: 'Failed to initiate call via network' };
+    console.error("Africa's Talking Call Exception:", error);
+    return { success: false, error: 'Failed to connect to Africa\'s Talking service' };
   }
 }

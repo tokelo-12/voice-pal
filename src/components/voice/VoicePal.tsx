@@ -68,7 +68,7 @@ export const VoicePal: React.FC = () => {
   const browserFallbackSpeak = useCallback((text: string, lang: SupportedLanguage) => {
     if (typeof window !== 'undefined' && window.speechSynthesis) {
       window.speechSynthesis.cancel();
-      const utterance = new SynthesisUtterance(text);
+      const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = lang;
       utterance.onend = () => setAppState('idle');
       utterance.onerror = () => setAppState('idle');

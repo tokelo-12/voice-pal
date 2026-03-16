@@ -18,8 +18,8 @@ import { cn } from '@/lib/utils';
 type SupportedLanguage = 'en-US' | 'zu-ZA' | 'st-ZA';
 
 const INITIAL_CONTACTS: Contact[] = [
-  { id: '1', name: 'Mom', phoneNumber: '+27644914275' },
-  { id: '2', name: 'Sindi', phoneNumber: '+27716828358' },
+  { id: '1', name: 'John', phoneNumber: '+27000000000' },
+  { id: '2', name: 'Xoli', phoneNumber: '+27000000000' },
   { id: '3', name: 'Sello', phoneNumber: '0831234567' },
   { id: '4', name: 'Emergency', phoneNumber: '112' },
 ];

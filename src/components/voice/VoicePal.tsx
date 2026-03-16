@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Blob, BlobState } from './Blob';
+import { CallScreen } from './CallScreen';
 import { interpretVoiceCommand } from '@/ai/flows/interpret-voice-command-flow';
 import { tts } from '@/ai/flows/tts-flow';
 import { Button } from '@/components/ui/button';
@@ -16,6 +17,7 @@ export const VoicePal: React.FC = () => {
   const [isSupported, setIsSupported] = useState(true);
   const [selectedLanguage, setSelectedLanguage] = useState<SupportedLanguage | null>(null);
   const [isListeningForLanguage, setIsListeningForLanguage] = useState(false);
+  const [activeCall, setActiveCall] = useState<{ contact: string } | null>(null);
   
   const recognitionRef = useRef<any>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -78,6 +80,7 @@ export const VoicePal: React.FC = () => {
     setSelectedLanguage(lang);
     setIsListeningForLanguage(false);
     setTranscript('');
+    setActiveCall(null);
     
     if (lang) {
       let welcome = "";
@@ -130,8 +133,9 @@ export const VoicePal: React.FC = () => {
       const result = await interpretVoiceCommand({ command: text });
       
       if (result.intent === 'make_call') {
-        const contact = result.details.contactName || result.details.phoneNumber;
+        const contact = result.details.contactName || result.details.phoneNumber || "Unknown Contact";
         speak(`Certainly. Calling ${contact} now.`, selectedLanguage);
+        setActiveCall({ contact });
       } else if (result.intent === 'send_sms') {
         const contact = result.details.contactName || result.details.phoneNumber;
         speak(`Sending message to ${contact}. Message content: ${result.details.message}`, selectedLanguage);
@@ -201,6 +205,15 @@ export const VoicePal: React.FC = () => {
     setTimeout(() => toggleListening(), 2500);
   };
 
+  const handleHangUp = () => {
+    let message = "Call ended.";
+    if (selectedLanguage === 'zu-ZA') message = "Ucingo luvaliwe.";
+    if (selectedLanguage === 'st-ZA') message = "Mohala o khaotsoe.";
+    
+    speak(message, selectedLanguage!);
+    setActiveCall(null);
+  };
+
   if (!selectedLanguage) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center p-6 space-y-12 bg-background min-h-screen">
@@ -247,6 +260,17 @@ export const VoicePal: React.FC = () => {
           </Button>
         </div>
       </div>
+    );
+  }
+
+  // Render Call Screen if a call is active
+  if (activeCall) {
+    return (
+      <CallScreen 
+        contact={activeCall.contact} 
+        onHangUp={handleHangUp} 
+        language={selectedLanguage}
+      />
     );
   }
 

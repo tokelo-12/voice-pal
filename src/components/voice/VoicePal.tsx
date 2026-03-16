@@ -76,7 +76,7 @@ export const VoicePal: React.FC = () => {
     }
   }, []);
 
-  const speak = useCallback(async (text: string, lang: SupportedLanguage = 'en-US') => {
+  const speak = useCallback(async (text: string, lang: SupportedLanguage = 'en-US', autoListenAfter: boolean = false) => {
     if (!audioRef.current) return;
     
     setAppState('speaking');
@@ -93,24 +93,33 @@ export const VoicePal: React.FC = () => {
         }
       }
 
+      const onSpeechEnd = () => {
+        setAppState(prev => (prev !== 'success' && prev !== 'error' ? 'idle' : prev));
+        if (autoListenAfter) {
+          setTimeout(() => toggleListening(), 300);
+        }
+      };
+
       if (audioUrl) {
         audioRef.current.src = audioUrl;
-        audioRef.current.onended = () => {
-          setAppState(prev => (prev !== 'success' && prev !== 'error' ? 'idle' : prev));
-        };
+        audioRef.current.onended = onSpeechEnd;
         audioRef.current.onerror = () => {
           console.warn('Audio play error, falling back to browser synthesis');
           browserFallbackSpeak(text, lang);
+          if (autoListenAfter) setTimeout(() => toggleListening(), 1000);
         };
         await audioRef.current.play().catch(() => {
           browserFallbackSpeak(text, lang);
+          if (autoListenAfter) setTimeout(() => toggleListening(), 1000);
         });
       } else {
         browserFallbackSpeak(text, lang);
+        if (autoListenAfter) setTimeout(() => toggleListening(), 2000);
       }
     } catch (error) {
       console.error('TTS Flow Error:', error);
       browserFallbackSpeak(text, lang);
+      if (autoListenAfter) setTimeout(() => toggleListening(), 2000);
     }
   }, [browserFallbackSpeak]);
 
@@ -128,6 +137,8 @@ export const VoicePal: React.FC = () => {
       if (lang === 'zu-ZA') welcome = "isiZulu sikhethiwe. Siyakwamukela ku-Voice Pal. Thinta isikrini ukuze ukhulume.";
       if (lang === 'st-ZA') welcome = "Sesotho se khethiloe. Re u amohela ho Voice Pal. Tobetsa skrine ho bua.";
       
+      // Reset welcome flag only when entering a language
+      hasSpokenWelcome.current = true;
       setTimeout(() => speak(welcome, lang), 100);
     } else {
       hasSpokenWelcome.current = false;
@@ -174,12 +185,19 @@ export const VoicePal: React.FC = () => {
         
         if (!matchedContact && !result.details.phoneNumber) {
           setShowContacts(true);
-          speak("Who would you like to call? Here is your contact list.", selectedLanguage);
+          let msg = "Who would you like to call?";
+          if (selectedLanguage === 'zu-ZA') msg = "Ubani ofuna ukumshayela ucingo?";
+          if (selectedLanguage === 'st-ZA') msg = "O batla ho letsetsa mang?";
+          speak(msg, selectedLanguage, true);
         } else {
           const phoneNumber = matchedContact?.phoneNumber || result.details.phoneNumber || "+27218796297";
           const finalName = matchedContact?.name || contactName || "Unknown Contact";
 
-          speak(`Certainly. Calling ${finalName} now.`, selectedLanguage);
+          let msg = `Certainly. Calling ${finalName} now.`;
+          if (selectedLanguage === 'zu-ZA') msg = `Kulungile. Ngishayela u-${finalName} manje.`;
+          if (selectedLanguage === 'st-ZA') msg = `Ho lokile. Ke letsetsa ${finalName} hona joale.`;
+          
+          speak(msg, selectedLanguage);
           setActiveCall({ contact: finalName });
           initiateAfricaTalkingCall(phoneNumber);
         }
@@ -191,10 +209,15 @@ export const VoicePal: React.FC = () => {
 
         if (!phoneNumber) {
           setShowContacts(true);
-          speak("Who would you like to message? Here are your contacts.", selectedLanguage);
+          let msg = "Who would you like to message?";
+          if (selectedLanguage === 'zu-ZA') msg = "Ubani ofuna ukumthumelela umlayezo?";
+          if (selectedLanguage === 'st-ZA') msg = "O batla ho thumelela mang molaetsa?";
+          speak(msg, selectedLanguage, true);
         } else if (!message) {
-          speak(`What message would you like to send to ${matchedContact?.name || contactName || phoneNumber}?`, selectedLanguage);
-          setTimeout(() => toggleListening(), 3000);
+          let msg = `What message would you like to send?`;
+          if (selectedLanguage === 'zu-ZA') msg = `Ufuna ukuthumela muphi umlayezo?`;
+          if (selectedLanguage === 'st-ZA') msg = `O batla ho thumela molaetsa ofe?`;
+          speak(msg, selectedLanguage, true);
         } else {
           const smsResult = await initiateAfricaTalkingSms(phoneNumber, message);
           
@@ -202,7 +225,12 @@ export const VoicePal: React.FC = () => {
             setAppState('success');
             setLastActionStatus('success');
             playFeedbackSound('success');
-            speak(`Success! Message sent to ${matchedContact?.name || contactName || phoneNumber}.`, selectedLanguage);
+            
+            let msg = `Success! Message sent.`;
+            if (selectedLanguage === 'zu-ZA') msg = `Kuphumelele! Umlayezo uthunyelwe.`;
+            if (selectedLanguage === 'st-ZA') msg = `Katleho! Molaetsa o rometsoe.`;
+            
+            speak(msg, selectedLanguage);
             setTimeout(() => {
               setAppState('idle');
               setLastActionStatus('idle');
@@ -211,7 +239,12 @@ export const VoicePal: React.FC = () => {
             setAppState('error');
             setLastActionStatus('error');
             playFeedbackSound('error');
-            speak("I'm sorry, the message failed to send. Please check your connection.", selectedLanguage);
+            
+            let msg = `I'm sorry, the message failed to send.`;
+            if (selectedLanguage === 'zu-ZA') msg = `Ngiyaxolisa, umlayezo wehlulekile ukuthunyelwa.`;
+            if (selectedLanguage === 'st-ZA') msg = `Ke maswabi, molaetsa o hlolehile ho romelloa.`;
+            
+            speak(msg, selectedLanguage);
             setTimeout(() => {
               setAppState('idle');
               setLastActionStatus('idle');
@@ -219,18 +252,20 @@ export const VoicePal: React.FC = () => {
           }
         }
       } else if (result.intent === 'buy_airtime') {
-        speak(`Purchasing ${result.details.amount} Rand airtime for ${result.details.recipient}.`, selectedLanguage);
+        let msg = `Purchasing airtime.`;
+        if (selectedLanguage === 'zu-ZA') msg = `Ngithenga i-airtime.`;
+        if (selectedLanguage === 'st-ZA') msg = `Ke reka airtime.`;
+        speak(msg, selectedLanguage);
       } else if (result.intent === 'change_language') {
         selectLanguage(null);
       } else {
-        speak(result.reason || "I'm sorry, I didn't quite catch that. Could you repeat the command?", selectedLanguage);
+        speak(result.reason || "I'm sorry, I didn't quite catch that. Could you repeat the command?", selectedLanguage, true);
       }
     } catch (error) {
       setAppState('error');
       setLastActionStatus('error');
       playFeedbackSound('error');
-      speak("I encountered an error processing your request. Please try again.", selectedLanguage);
-      setTimeout(() => setAppState('idle'), 5000);
+      speak("I encountered an error processing your request. Please try again.", selectedLanguage, true);
     }
   }, [selectedLanguage, speak, selectLanguage, contacts, playFeedbackSound]);
 
@@ -251,7 +286,10 @@ export const VoicePal: React.FC = () => {
 
       recognitionRef.current.onerror = (event: any) => {
         if (event.error === 'no-speech') {
-          speak("I didn't hear anything. Please tap and try again.", selectedLanguage);
+          let msg = "I didn't hear anything. Please try again.";
+          if (selectedLanguage === 'zu-ZA') msg = "Angizwanga lutho. Sicela uzame futhi.";
+          if (selectedLanguage === 'st-ZA') msg = "Ha ke a utloa letho. Ka kopo leka hape.";
+          speak(msg, selectedLanguage);
         } else {
           setAppState('error');
           setLastActionStatus('error');
@@ -290,15 +328,25 @@ export const VoicePal: React.FC = () => {
     }
     
     let prompt = "";
-    if (action === 'sms') prompt = selectedLanguage === 'en-US' ? "Who should I message?" : selectedLanguage === 'zu-ZA' ? "Ubani okufanele ngimthumelele umlayezo?" : "Ke thumele molaetsa ho mang?";
-    if (action === 'airtime') prompt = selectedLanguage === 'en-US' ? "How much airtime would you like?" : selectedLanguage === 'zu-ZA' ? "Ufuna i-airtime engakanani?" : "O batla airtime e kae?";
+    if (action === 'sms') {
+      if (selectedLanguage === 'en-US') prompt = "Who should I message?";
+      else if (selectedLanguage === 'zu-ZA') prompt = "Ubani okufanele ngimthumelele umlayezo?";
+      else prompt = "Ke thumele molaetsa ho mang?";
+    } else if (action === 'airtime') {
+      if (selectedLanguage === 'en-US') prompt = "How much airtime would you like?";
+      else if (selectedLanguage === 'zu-ZA') prompt = "Ufuna i-airtime engakanani?";
+      else prompt = "O batla airtime e kae?";
+    }
     
-    speak(prompt, selectedLanguage);
-    setTimeout(() => toggleListening(), 2500);
+    speak(prompt, selectedLanguage, true);
   };
 
   const handleContactCall = (contact: Contact) => {
-    speak(`Calling ${contact.name}.`, selectedLanguage!);
+    let msg = `Calling ${contact.name}.`;
+    if (selectedLanguage === 'zu-ZA') msg = `Ngishayela u-${contact.name}.`;
+    if (selectedLanguage === 'st-ZA') msg = `Ke letsetsa ${contact.name}.`;
+    
+    speak(msg, selectedLanguage!);
     setActiveCall({ contact: contact.name });
     initiateAfricaTalkingCall(contact.phoneNumber);
   };
@@ -308,8 +356,7 @@ export const VoicePal: React.FC = () => {
     if (selectedLanguage === 'zu-ZA') msg = `Khuluma umlayezo wakho we ${contact.name}.`;
     if (selectedLanguage === 'st-ZA') msg = `Bua molaetsa oa hau oa ${contact.name}.`;
     
-    speak(msg, selectedLanguage!);
-    setTimeout(() => toggleListening(), 2500);
+    speak(msg, selectedLanguage!, true);
   };
 
   const handleHangUp = () => {

@@ -58,29 +58,27 @@ const interpretVoiceCommandPrompt = ai.definePrompt({
       },
     ],
   },
-  prompt: `You are VoicePal, an AI assistant for visually impaired users. Your primary goal is to accurately interpret spoken voice commands, given in Sesotho, isiZulu, or English, and extract the user's intended action along with all relevant details. Provide a JSON response conforming to the provided schema.
+  prompt: `You are VoicePal, an AI assistant for visually impaired users. Your goal is to interpret spoken commands in English, isiZulu, or Sesotho.
 
-The possible intents are:
-- 'make_call': The user wants to initiate a phone call.
-- 'send_sms': The user wants to send an SMS message.
-- 'buy_airtime': The user wants to purchase airtime.
-- 'change_language': The user wants to go back to the language selection screen or change their language. Examples: "change language", "go back", "fetola puo", "khutlela morao", "shintsha ulimi", "buyela emuva".
-- 'unknown': The intent cannot be understood or does not fit the above categories.
+Identify the intent and extract details.
 
-When the intent is 'make_call', populate 'phoneNumber' and/or 'contactName' in the 'details' object. 
-IMPORTANT: For testing purposes, if the user asks to "call me", "call my number", or similar, use the testing phone number: +27218796297.
+Intents:
+- 'make_call': Triggered by keywords like "call", "phone", "letsa" (Sesotho), "shayela" (Zulu), "fona" (Zulu).
+- 'send_sms': Triggered by "message", "sms", "text", "molaetsa" (Sesotho), "umyalezo" (Zulu), "thumela" (Zulu/Sesotho).
+- 'buy_airtime': Triggered by "airtime", "data", "reka" (Sesotho), "thenga" (Zulu).
+- 'change_language': Triggered by "change language", "go back", "fetola puo" (Sesotho), "shintsha ulimi" (Zulu).
+- 'unknown': If you can't tell.
 
-When the intent is 'send_sms', populate 'phoneNumber' and/or 'contactName', and the 'message' content in the 'details' object.
-When the intent is 'buy_airtime', populate the 'amount' (as a number, e.g., 50 for R50) and the 'recipient' (e.g., 'self', a contact name, or a phone number) in the 'details' object.
-If the intent is 'unknown', include a brief 'reason' why the command could not be processed.
+Details extraction:
+- 'make_call': extract 'phoneNumber' or 'contactName'. If the user says "call me", use "+27218796297".
+- 'send_sms': extract 'phoneNumber'/'contactName' and 'message'.
+- 'buy_airtime': extract 'amount' (number) and 'recipient'.
 
 Examples:
-- "Ke kopa ho letsetsa Sello ka nomoro 0831234567" -> {"intent": "make_call", "details": {"contactName": "Sello", "phoneNumber": "0831234567"}}
-- "Call my number" -> {"intent": "make_call", "details": {"contactName": "My Number", "phoneNumber": "+27218796297"}}
-- "Thumela umyalezo kuNomusa othi 'Sawubona Nomusa, unjani?'" -> {"intent": "send_sms", "details": {"contactName": "Nomusa", "message": "Sawubona Nomusa, unjani?"}}
-- "Buy R50 airtime for myself." -> {"intent": "buy_airtime", "details": {"amount": 50, "recipient": "self"}}
-- "Fetola puo" -> {"intent": "change_language", "details": {}}
-- "Shintsha ulimi" -> {"intent": "change_language", "details": {}}
+- "Ngifuna ukushayela uSello" -> {"intent": "make_call", "details": {"contactName": "Sello"}}
+- "Thumela umyalezo" -> {"intent": "send_sms", "details": {}}
+- "Reka airtime ea mashome a mabeli" -> {"intent": "buy_airtime", "details": {"amount": 20}}
+- "Letsetsa Mom" -> {"intent": "make_call", "details": {"contactName": "Mom"}}
 
 Voice Command: {{{command}}}`
 });

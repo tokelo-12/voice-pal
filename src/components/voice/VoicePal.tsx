@@ -232,7 +232,6 @@ export const VoicePal: React.FC = () => {
     setLastActionStatus('idle');
     
     try {
-      // Handle pending actions first (like missing SMS message or missing airtime details)
       if (pendingAction) {
         if (pendingAction.type === 'sms' && pendingAction.phoneNumber && !pendingAction.message) {
           const smsResult = await initiateAfricaTalkingSms(pendingAction.phoneNumber, text);
@@ -242,7 +241,7 @@ export const VoicePal: React.FC = () => {
             playFeedbackSound('success');
             setPendingAction(null);
             let msg = `Success! Message sent.`;
-            if (selectedLanguage === 'zu-ZA') msg = `Kuphumelele! Umlayezo uthunyelwe.`;
+            if (selectedLanguage === 'zu-ZA') msg = `Kuphumelele! Umlayezo thunyelwe.`;
             if (selectedLanguage === 'st-ZA') msg = `Katleho! Molaetsa o rometsoe.`;
             speak(msg, selectedLanguage);
           } else {
@@ -256,7 +255,6 @@ export const VoicePal: React.FC = () => {
         }
 
         if (pendingAction.type === 'airtime') {
-          // If we were waiting for an amount
           if (!pendingAction.amount) {
             const amount = parseFloat(text.replace(/[^0-9.]/g, ''));
             if (isNaN(amount)) {
@@ -347,7 +345,7 @@ export const VoicePal: React.FC = () => {
             playFeedbackSound('success');
             setPendingAction(null);
             let msg = `Success! Message sent.`;
-            if (selectedLanguage === 'zu-ZA') msg = `Kuphumelele! Umlayezo uthunyelwe.`;
+            if (selectedLanguage === 'zu-ZA') msg = `Kuphumelele! Umlayezo thunyelwe.`;
             if (selectedLanguage === 'st-ZA') msg = `Katleho! Molaetsa o rometsoe.`;
             speak(msg, selectedLanguage);
           } else {
@@ -362,7 +360,7 @@ export const VoicePal: React.FC = () => {
         const amount = result.details.amount;
         const recipient = result.details.recipient;
         
-        let phoneNumber = '+27644914275'; // Default for self
+        let phoneNumber = '+27644914275'; 
         if (recipient && recipient !== 'self') {
           const matchedContact = contacts.find(c => c.name.toLowerCase().includes(recipient.toLowerCase()));
           if (matchedContact) phoneNumber = matchedContact.phoneNumber;
@@ -529,10 +527,34 @@ export const VoicePal: React.FC = () => {
           BACK
         </Button>
       </div>
+
       <div className="flex-1 flex flex-col items-center justify-center w-full">
         <Blob state={appState} onClick={toggleListening} isSupported={isSupported} />
       </div>
-      <div className="w-full max-w-lg grid grid-cols-2 gap-4 mb-32 px-4">
+
+      {/* Moved Status Bar into the main flow between Blob and Buttons */}
+      <div className="w-full max-w-lg px-8 mb-6 mt-2">
+        <div className={cn(
+          "backdrop-blur-md rounded-2xl p-4 border transition-all duration-500 shadow-2xl",
+          lastActionStatus === 'success' ? "bg-green-500/10 border-green-500 shadow-[0_0_30px_rgba(34,197,94,0.4)]" : 
+          lastActionStatus === 'error' ? "bg-red-500/10 border-red-500 shadow-[0_0_30px_rgba(239,68,68,0.4)]" : 
+          "bg-secondary/50 border-border/50"
+        )}>
+          <p className={cn(
+            "text-xs font-semibold uppercase tracking-widest mb-1 transition-colors duration-500",
+            lastActionStatus === 'success' ? "text-green-400" : 
+            lastActionStatus === 'error' ? "text-red-400" : 
+            "text-accent"
+          )}>
+            {lastActionStatus === 'success' ? 'Success' : lastActionStatus === 'error' ? 'Failure' : 'Status'}
+          </p>
+          <p className="text-foreground text-base font-medium truncate">
+            {transcript ? `"${transcript}"` : lastActionStatus === 'success' ? "Action complete!" : lastActionStatus === 'error' ? "Action failed" : "Ready for command"}
+          </p>
+        </div>
+      </div>
+
+      <div className="w-full max-w-lg grid grid-cols-2 gap-4 mb-12 px-4">
         <Button onClick={() => handleQuickAction('call')} className="flex flex-col h-28 gap-3 bg-secondary hover:bg-primary/20 border-2 border-primary/10 rounded-[2rem] group">
           <Phone className="w-8 h-8 text-primary group-hover:scale-110 transition-transform" />
           <span className="font-bold text-base uppercase">{selectedLanguage === 'zu-ZA' ? 'SHAYELA' : selectedLanguage === 'st-ZA' ? 'LETSA' : 'CALL'}</span>
@@ -549,12 +571,6 @@ export const VoicePal: React.FC = () => {
           <CreditCard className="w-8 h-8 text-primary group-hover:scale-110 transition-transform" />
           <span className="font-bold text-base uppercase">AIRTIME</span>
         </Button>
-      </div>
-      <div className="fixed bottom-8 w-full max-w-lg px-8">
-        <div className={cn("backdrop-blur-md rounded-2xl p-4 border transition-all duration-500 shadow-2xl", lastActionStatus === 'success' ? "bg-green-500/10 border-green-500 shadow-[0_0_30px_rgba(34,197,94,0.4)]" : lastActionStatus === 'error' ? "bg-red-500/10 border-red-500 shadow-[0_0_30px_rgba(239,68,68,0.4)]" : "bg-secondary/50 border-border/50")}>
-          <p className={cn("text-xs font-semibold uppercase tracking-widest mb-1 transition-colors duration-500", lastActionStatus === 'success' ? "text-green-400" : lastActionStatus === 'error' ? "text-red-400" : "text-accent")}>{lastActionStatus === 'success' ? 'Success' : lastActionStatus === 'error' ? 'Failure' : 'Status'}</p>
-          <p className="text-foreground text-base font-medium truncate">{transcript ? `"${transcript}"` : lastActionStatus === 'success' ? "Action complete!" : lastActionStatus === 'error' ? "Action failed" : "Ready for command"}</p>
-        </div>
       </div>
     </div>
   );

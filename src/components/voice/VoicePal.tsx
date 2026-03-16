@@ -6,7 +6,7 @@ import { CallScreen } from './CallScreen';
 import { ContactList, Contact } from './ContactList';
 import { interpretVoiceCommand } from '@/ai/flows/interpret-voice-command-flow';
 import { tts } from '@/ai/flows/tts-flow';
-import { initiateAfricaTalkingCall } from '@/services/africas-talking';
+import { initiateAfricaTalkingCall, initiateAfricaTalkingSms } from '@/services/africas-talking';
 import { Button } from '@/components/ui/button';
 import { Mic, ChevronLeft, Phone, MessageSquare, CreditCard, Users } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -160,11 +160,9 @@ export const VoicePal: React.FC = () => {
       
       if (result.intent === 'make_call') {
         const contactName = result.details.contactName;
-        // Check if contact exists in our list
         const matchedContact = contacts.find(c => c.name.toLowerCase() === contactName?.toLowerCase());
         
         if (!matchedContact && !result.details.phoneNumber) {
-          // If they just said "call" without a target, show contacts
           setShowContacts(true);
           speak("Who would you like to call? Here is your contact list.", selectedLanguage);
         } else {
@@ -176,8 +174,22 @@ export const VoicePal: React.FC = () => {
           initiateAfricaTalkingCall(phoneNumber);
         }
       } else if (result.intent === 'send_sms') {
-        const contact = result.details.contactName || result.details.phoneNumber;
-        speak(`Sending message to ${contact}. Message content: ${result.details.message}`, selectedLanguage);
+        const contactName = result.details.contactName;
+        const matchedContact = contacts.find(c => c.name.toLowerCase() === contactName?.toLowerCase());
+        const phoneNumber = matchedContact?.phoneNumber || result.details.phoneNumber;
+        const message = result.details.message;
+
+        if (!phoneNumber) {
+          setShowContacts(true);
+          speak("Who would you like to message? Here are your contacts.", selectedLanguage);
+        } else if (!message) {
+          speak(`What message would you like to send to ${matchedContact?.name || contactName || phoneNumber}?`, selectedLanguage);
+          // Auto-trigger listening for the message after speaking
+          setTimeout(() => toggleListening(), 3000);
+        } else {
+          speak(`Sending message to ${matchedContact?.name || contactName || phoneNumber} now.`, selectedLanguage);
+          initiateAfricaTalkingSms(phoneNumber, message);
+        }
       } else if (result.intent === 'buy_airtime') {
         speak(`Purchasing ${result.details.amount} Rand airtime for ${result.details.recipient}.`, selectedLanguage);
       } else if (result.intent === 'change_language') {

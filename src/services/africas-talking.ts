@@ -15,7 +15,7 @@ export async function initiateAfricaTalkingCall(to: string) {
     return { success: false, error: 'API Key not set' };
   }
 
-  // Africa's Talking expects a POST with x-www-form-urlencoded
+  // Africa's Talking expects a POST with x-www-form-urlencoded for the Voice API
   const body = new URLSearchParams();
   body.append('username', username);
   body.append('to', to);
@@ -41,7 +41,7 @@ export async function initiateAfricaTalkingCall(to: string) {
 
     const data = await response.json();
     
-    // Handle the specific response format provided: { entries: [...], errorMessage: "None" }
+    // Handle the specific response format: { entries: [...], errorMessage: "None" }
     if (data.errorMessage && data.errorMessage !== 'None' && data.errorMessage !== '') {
       console.error("Africa's Talking Business Error:", data.errorMessage);
       return { success: false, error: data.errorMessage };
@@ -93,13 +93,38 @@ export async function initiateAfricaTalkingSms(to: string | string[], message: s
 
     const data = await response.json();
     
-    if (data.SMSMessageData?.Message?.includes('Error')) {
-      console.error("Africa's Talking SMS Business Error:", data.SMSMessageData.Message);
-      return { success: false, error: data.SMSMessageData.Message };
+    /**
+     * Expected response format:
+     * {
+     *   "SMSMessageData": {
+     *     "Message": "Sent to 1/1 Total Cost: KES 0.8000",
+     *     "Recipients": [{
+     *       "statusCode": 101,
+     *       "number": "+254711XXXYYY",
+     *       "status": "Success",
+     *       "cost": "KES 0.8000",
+     *       "messageId": "..."
+     *     }]
+     *   }
+     * }
+     */
+    const smsData = data.SMSMessageData;
+    
+    if (!smsData) {
+      throw new Error("Invalid response structure from Africa's Talking SMS API");
     }
 
-    console.log('Africa\'s Talking SMS Sent Successfully:', data);
-    return { success: true, data };
+    // Check for failures in recipients (101 is Success code for AT)
+    const failures = smsData.Recipients?.filter((r: any) => r.statusCode !== 101 && r.status !== 'Success');
+
+    if (failures && failures.length > 0) {
+      console.warn("Some SMS recipients failed:", failures);
+      // Even if some failed, we might have partial success. 
+      // For this MVP, we log and return the data.
+    }
+
+    console.log('Africa\'s Talking SMS Sent Summary:', smsData.Message);
+    return { success: true, data: smsData };
   } catch (error) {
     console.error("Africa's Talking SMS Exception:", error);
     return { success: false, error: 'Failed to send SMS' };

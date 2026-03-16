@@ -51,6 +51,7 @@ export const VoicePal: React.FC = () => {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const feedbackAudioRef = useRef<HTMLAudioElement | null>(null);
   const hasSpokenWelcome = useRef(false);
+  const hasSelectedLanguage = useRef(false);
   
   const voiceCache = useRef<Map<string, string>>(new Map());
 
@@ -152,14 +153,15 @@ export const VoicePal: React.FC = () => {
     setPendingAction(null);
     
     if (lang) {
+      hasSelectedLanguage.current = true;
       let welcome = "";
       if (lang === 'en-US') welcome = "English selected. Welcome to Voice Pal. Tap the screen or press the space bar to give a command.";
       if (lang === 'zu-ZA') welcome = "isiZulu sikhethiwe. Siyakwamukela ku-Voice Pal. Thinta isikrini noma ucindezele i-space bar ukuze ukhulume.";
       if (lang === 'st-ZA') welcome = "Sesotho se khethiloe. Re u amohela ho Voice Pal. Tobetsa skrine kapa o tobetse space bar ho bua.";
       
-      hasSpokenWelcome.current = true;
       setTimeout(() => speak(welcome, lang), 100);
     } else {
+      hasSelectedLanguage.current = false;
       hasSpokenWelcome.current = false;
       setTimeout(() => speak("Returning to language selection. Please choose English, Zulu, or Sesotho.", "en-US"), 100);
     }

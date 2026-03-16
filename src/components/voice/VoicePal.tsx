@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Blob, BlobState } from './Blob';
 import { interpretVoiceCommand } from '@/ai/flows/interpret-voice-command-flow';
 import { Button } from '@/components/ui/button';
-import { Mic, MicOff } from 'lucide-react';
+import { Mic, ChevronLeft } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 type SupportedLanguage = 'en-US' | 'zu-ZA' | 'st-ZA';
@@ -54,16 +54,22 @@ export const VoicePal: React.FC = () => {
     synthRef.current.speak(utterance);
   }, []);
 
-  const selectLanguage = useCallback((lang: SupportedLanguage) => {
+  const selectLanguage = useCallback((lang: SupportedLanguage | null) => {
     setSelectedLanguage(lang);
     setIsListeningForLanguage(false);
+    setTranscript('');
     
-    let welcome = "";
-    if (lang === 'en-US') welcome = "English selected. Welcome to Voice Pal. Tap the center of the screen to give a command.";
-    if (lang === 'zu-ZA') welcome = "isiZulu sikhethiwe. Siyakwamukela ku-Voice Pal. Thinta isikrini ukuze ukhulume.";
-    if (lang === 'st-ZA') welcome = "Sesotho se khethiloe. Re u amohela ho Voice Pal. Tobetsa skrine ho bua.";
-    
-    setTimeout(() => speak(welcome, lang), 100);
+    if (lang) {
+      let welcome = "";
+      if (lang === 'en-US') welcome = "English selected. Welcome to Voice Pal. Tap the center of the screen to give a command.";
+      if (lang === 'zu-ZA') welcome = "isiZulu sikhethiwe. Siyakwamukela ku-Voice Pal. Thinta isikrini ukuze ukhulume.";
+      if (lang === 'st-ZA') welcome = "Sesotho se khethiloe. Re u amohela ho Voice Pal. Tobetsa skrine ho bua.";
+      
+      setTimeout(() => speak(welcome, lang), 100);
+    } else {
+      // If going back to selection
+      setTimeout(() => speak("Returning to language selection. Please choose English, Zulu, or Sesotho.", "en-US"), 100);
+    }
   }, [speak]);
 
   const toggleLanguageListening = useCallback(() => {
@@ -120,6 +126,8 @@ export const VoicePal: React.FC = () => {
         speak(`Sending message to ${contact}. Message content: ${result.details.message}`, selectedLanguage);
       } else if (result.intent === 'buy_airtime') {
         speak(`Purchasing ${result.details.amount} Rand airtime for ${result.details.recipient}.`, selectedLanguage);
+      } else if (result.intent === 'change_language') {
+        selectLanguage(null);
       } else {
         speak(result.reason || "I'm sorry, I didn't quite catch that. Could you repeat the command?", selectedLanguage);
       }
@@ -127,7 +135,7 @@ export const VoicePal: React.FC = () => {
       setAppState('error');
       speak("I encountered an error processing your request. Please try again.", selectedLanguage);
     }
-  }, [selectedLanguage, speak]);
+  }, [selectedLanguage, speak, selectLanguage]);
 
   const toggleListening = useCallback(() => {
     if (!recognitionRef.current || !isSupported || !selectedLanguage) return;
@@ -225,7 +233,22 @@ export const VoicePal: React.FC = () => {
 
   return (
     <div className="flex-1 flex flex-col items-center justify-center p-4">
+      {/* Back Button */}
+      <div className="absolute top-8 left-8">
+        <Button
+          variant="outline"
+          size="lg"
+          onClick={() => selectLanguage(null)}
+          className="h-16 px-6 gap-3 text-xl font-bold rounded-2xl border-2 hover:bg-accent hover:text-accent-foreground border-primary/20 bg-background/50 backdrop-blur-sm shadow-lg group"
+          aria-label="Go back to language selection"
+        >
+          <ChevronLeft className="w-8 h-8 group-hover:-translate-x-1 transition-transform" />
+          BACK
+        </Button>
+      </div>
+
       <Blob state={appState} onClick={toggleListening} isSupported={isSupported} />
+      
       <div className="fixed bottom-12 w-full max-w-lg px-8">
         <div className="bg-secondary/50 backdrop-blur-md rounded-2xl p-4 border border-border/50">
           <p className="text-sm font-semibold text-accent uppercase tracking-widest mb-1">Status</p>

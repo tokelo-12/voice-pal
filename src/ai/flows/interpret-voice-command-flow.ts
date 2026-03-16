@@ -1,8 +1,8 @@
 'use server';
 /**
  * @fileOverview This file defines a Genkit flow for interpreting voice commands given in Sesotho, isiZulu, or English.
- * It identifies the user's intent (e.g., make a call, send an SMS, buy airtime) and extracts all necessary details
- * to perform the requested action.
+ * It identifies the user's intent (e.g., make a call, send an SMS, buy airtime, or change language) and extracts 
+ * all necessary details to perform the requested action.
  *
  * - interpretVoiceCommand - A function that processes the voice command.
  * - InterpretVoiceCommandInput - The input type for the interpretVoiceCommand function.
@@ -18,7 +18,7 @@ const InterpretVoiceCommandInputSchema = z.object({
 export type InterpretVoiceCommandInput = z.infer<typeof InterpretVoiceCommandInputSchema>;
 
 const InterpretVoiceCommandOutputSchema = z.object({
-  intent: z.enum(['make_call', 'send_sms', 'buy_airtime', 'unknown']).describe('The detected intent of the voice command.'),
+  intent: z.enum(['make_call', 'send_sms', 'buy_airtime', 'change_language', 'unknown']).describe('The detected intent of the voice command.'),
   details: z.object({
     phoneNumber: z.string().optional().describe('The phone number, if applicable.'),
     contactName: z.string().optional().describe('The contact name, if applicable.'),
@@ -64,6 +64,7 @@ The possible intents are:
 - 'make_call': The user wants to initiate a phone call.
 - 'send_sms': The user wants to send an SMS message.
 - 'buy_airtime': The user wants to purchase airtime.
+- 'change_language': The user wants to go back to the language selection screen or change their language. Examples: "change language", "go back", "fetola puo", "khutlela morao", "shintsha ulimi", "buyela emuva".
 - 'unknown': The intent cannot be understood or does not fit the above categories.
 
 When the intent is 'make_call', populate 'phoneNumber' and/or 'contactName' in the 'details' object.
@@ -75,6 +76,8 @@ Examples:
 - "Ke kopa ho letsetsa Sello ka nomoro 0831234567" -> {"intent": "make_call", "details": {"contactName": "Sello", "phoneNumber": "0831234567"}}
 - "Thumela umyalezo kuNomusa othi 'Sawubona Nomusa, unjani?'" -> {"intent": "send_sms", "details": {"contactName": "Nomusa", "message": "Sawubona Nomusa, unjani?"}}
 - "Buy R50 airtime for myself." -> {"intent": "buy_airtime", "details": {"amount": 50, "recipient": "self"}}
+- "Fetola puo" -> {"intent": "change_language", "details": {}}
+- "Shintsha ulimi" -> {"intent": "change_language", "details": {}}
 - "I want to order food." -> {"intent": "unknown", "details": {}, "reason": "Unsupported action."}
 
 Voice Command: {{{command}}}`

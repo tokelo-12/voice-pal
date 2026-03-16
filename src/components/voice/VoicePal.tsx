@@ -106,7 +106,15 @@ export const VoicePal: React.FC = () => {
       const onSpeechEnd = () => {
         setAppState(prev => (prev !== 'success' && prev !== 'error' ? 'idle' : prev));
         if (autoListenAfter) {
-          setTimeout(() => toggleListening(), 300);
+          // Trigger a short delay before listening again to avoid picking up its own audio
+          setTimeout(() => {
+            if (recognitionRef.current) {
+              setAppState('listening');
+              setLastActionStatus('idle');
+              recognitionRef.current.lang = lang;
+              recognitionRef.current.start();
+            }
+          }, 300);
         }
       };
 
@@ -144,9 +152,9 @@ export const VoicePal: React.FC = () => {
     
     if (lang) {
       let welcome = "";
-      if (lang === 'en-US') welcome = "English selected. Welcome to Voice Pal. Tap the center of the screen to give a command.";
-      if (lang === 'zu-ZA') welcome = "isiZulu sikhethiwe. Siyakwamukela ku-Voice Pal. Thinta isikrini ukuze ukhulume.";
-      if (lang === 'st-ZA') welcome = "Sesotho se khethiloe. Re u amohela ho Voice Pal. Tobetsa skrine ho bua.";
+      if (lang === 'en-US') welcome = "English selected. Welcome to Voice Pal. Tap the center of the screen or press the space bar to give a command.";
+      if (lang === 'zu-ZA') welcome = "isiZulu sikhethiwe. Siyakwamukela ku-Voice Pal. Thinta isikrini noma ucindezele i-space bar ukuze ukhulume.";
+      if (lang === 'st-ZA') welcome = "Sesotho se khethiloe. Re u amohela ho Voice Pal. Tobetsa skrine kapa o tobetse space bar ho bua.";
       
       hasSpokenWelcome.current = true;
       setTimeout(() => speak(welcome, lang), 100);
@@ -180,6 +188,42 @@ export const VoicePal: React.FC = () => {
       recognitionRef.current.stop();
     }
   }, [isSupported, isListeningForLanguage, selectLanguage, speak]);
+
+  const toggleListening = useCallback(() => {
+    if (!recognitionRef.current || !isSupported || !selectedLanguage) return;
+
+    if (appState === 'idle' || appState === 'error' || appState === 'success') {
+      setAppState('listening');
+      setLastActionStatus('idle');
+      recognitionRef.current.lang = selectedLanguage;
+      recognitionRef.current.start();
+      
+      recognitionRef.current.onresult = (event: any) => {
+        const currentTranscript = event.results[0][0].transcript;
+        setTranscript(currentTranscript);
+        handleIntent(currentTranscript);
+      };
+
+      recognitionRef.current.onerror = (event: any) => {
+        if (event.error === 'no-speech') {
+          let msg = "I didn't hear anything. Please try again.";
+          if (selectedLanguage === 'zu-ZA') msg = "Angizwanga lutho. Sicela uzame futhi.";
+          if (selectedLanguage === 'st-ZA') msg = "Ha ke a utloa letho. Ka kopo leka hape.";
+          speak(msg, selectedLanguage);
+        } else {
+          setAppState('error');
+          setLastActionStatus('error');
+        }
+      };
+
+      recognitionRef.current.onend = () => {
+        setAppState(prev => prev === 'listening' ? 'idle' : prev);
+      };
+    } else if (appState === 'listening') {
+      recognitionRef.current.stop();
+      setAppState('idle');
+    }
+  }, [appState, isSupported, selectedLanguage, speak]);
 
   const handleIntent = useCallback(async (text: string) => {
     if (!selectedLanguage) return;
@@ -301,43 +345,29 @@ export const VoicePal: React.FC = () => {
       playFeedbackSound('error');
       speak("I encountered an error processing your request. Please try again.", selectedLanguage, true);
     }
-  }, [selectedLanguage, speak, selectLanguage, contacts, playFeedbackSound, pendingAction]);
+  }, [selectedLanguage, speak, contacts, playFeedbackSound, pendingAction]);
 
-  const toggleListening = useCallback(() => {
-    if (!recognitionRef.current || !isSupported || !selectedLanguage) return;
+  // Global Keyboard listener for Space bar
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // Ignore keyboard shortcuts during active calls
+      if (activeCall) return;
 
-    if (appState === 'idle' || appState === 'error' || appState === 'success') {
-      setAppState('listening');
-      setLastActionStatus('idle');
-      recognitionRef.current.lang = selectedLanguage;
-      recognitionRef.current.start();
-      
-      recognitionRef.current.onresult = (event: any) => {
-        const currentTranscript = event.results[0][0].transcript;
-        setTranscript(currentTranscript);
-        handleIntent(currentTranscript);
-      };
-
-      recognitionRef.current.onerror = (event: any) => {
-        if (event.error === 'no-speech') {
-          let msg = "I didn't hear anything. Please try again.";
-          if (selectedLanguage === 'zu-ZA') msg = "Angizwanga lutho. Sicela uzame futhi.";
-          if (selectedLanguage === 'st-ZA') msg = "Ha ke a utloa letho. Ka kopo leka hape.";
-          speak(msg, selectedLanguage);
+      if (event.code === 'Space' || event.key === ' ') {
+        // Prevent default browser behavior (like scrolling)
+        event.preventDefault();
+        
+        if (!selectedLanguage) {
+          toggleLanguageListening();
         } else {
-          setAppState('error');
-          setLastActionStatus('error');
+          toggleListening();
         }
-      };
+      }
+    };
 
-      recognitionRef.current.onend = () => {
-        setAppState(prev => prev === 'listening' ? 'idle' : prev);
-      };
-    } else if (appState === 'listening') {
-      recognitionRef.current.stop();
-      setAppState('idle');
-    }
-  }, [appState, handleIntent, isSupported, selectedLanguage, speak]);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedLanguage, activeCall, toggleLanguageListening, toggleListening]);
 
   useEffect(() => {
     if (!selectedLanguage && isSupported && !hasSpokenWelcome.current) {
@@ -354,7 +384,7 @@ export const VoicePal: React.FC = () => {
 
     if (action === 'call' || action === 'contacts') {
       setShowContacts(true);
-      setPendingAction({ type: action === 'call' ? 'call' : 'call' }); // reuse list for both
+      setPendingAction({ type: action === 'call' ? 'call' : 'call' });
       let msg = "Showing your contacts.";
       if (selectedLanguage === 'zu-ZA') msg = "Ngibonisa oxhumana nabo.";
       if (selectedLanguage === 'st-ZA') msg = "Ke u bontša mabitso a hao.";
@@ -423,7 +453,7 @@ export const VoicePal: React.FC = () => {
             "w-48 h-48 rounded-full flex items-center justify-center transition-all duration-500 blob-shadow",
             isListeningForLanguage ? "bg-accent scale-110 animate-pulse" : "bg-primary"
           )}
-          aria-label={isListeningForLanguage ? "Listening for language" : "Tap to speak your language"}
+          aria-label={isListeningForLanguage ? "Listening for language" : "Tap to speak your language. You can also press Space bar."}
         >
           {isListeningForLanguage ? (
             <Mic className="w-20 h-20 text-primary animate-bounce" />

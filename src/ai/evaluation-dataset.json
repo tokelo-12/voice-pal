@@ -1,0 +1,46 @@
+
+[
+  {
+    "testCase": "English - Simple Call",
+    "input": { "command": "Call Mom" },
+    "expected": {
+      "intent": "make_call",
+      "details": { "contactName": "Mom" }
+    }
+  },
+  {
+    "testCase": "isiZulu - Message with content",
+    "input": { "command": "Thumela umyalezo ho Sello o re ke tseleng" },
+    "expected": {
+      "intent": "send_sms",
+      "details": {
+        "contactName": "Sello",
+        "message": "ke tseleng"
+      }
+    }
+  },
+  {
+    "testCase": "Sesotho - Buy Airtime",
+    "input": { "command": "Reka airtime ea mashome a mabeli" },
+    "expected": {
+      "intent": "buy_airtime",
+      "details": { "amount": 20 }
+    }
+  },
+  {
+    "testCase": "English - Emergency Call",
+    "input": { "command": "Emergency call" },
+    "expected": {
+      "intent": "make_call",
+      "details": { "contactName": "Emergency" }
+    }
+  },
+  {
+    "testCase": "isiZulu - Change Language",
+    "input": { "command": "Ngicela ukushintsha ulimi" },
+    "expected": {
+      "intent": "change_language",
+      "details": {}
+    }
+  }
+]

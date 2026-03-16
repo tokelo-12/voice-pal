@@ -67,18 +67,20 @@ The possible intents are:
 - 'change_language': The user wants to go back to the language selection screen or change their language. Examples: "change language", "go back", "fetola puo", "khutlela morao", "shintsha ulimi", "buyela emuva".
 - 'unknown': The intent cannot be understood or does not fit the above categories.
 
-When the intent is 'make_call', populate 'phoneNumber' and/or 'contactName' in the 'details' object.
+When the intent is 'make_call', populate 'phoneNumber' and/or 'contactName' in the 'details' object. 
+IMPORTANT: For testing purposes, if the user asks to "call me", "call my number", or similar, use the testing phone number: +27218796297.
+
 When the intent is 'send_sms', populate 'phoneNumber' and/or 'contactName', and the 'message' content in the 'details' object.
 When the intent is 'buy_airtime', populate the 'amount' (as a number, e.g., 50 for R50) and the 'recipient' (e.g., 'self', a contact name, or a phone number) in the 'details' object.
 If the intent is 'unknown', include a brief 'reason' why the command could not be processed.
 
 Examples:
 - "Ke kopa ho letsetsa Sello ka nomoro 0831234567" -> {"intent": "make_call", "details": {"contactName": "Sello", "phoneNumber": "0831234567"}}
+- "Call my number" -> {"intent": "make_call", "details": {"contactName": "My Number", "phoneNumber": "+27218796297"}}
 - "Thumela umyalezo kuNomusa othi 'Sawubona Nomusa, unjani?'" -> {"intent": "send_sms", "details": {"contactName": "Nomusa", "message": "Sawubona Nomusa, unjani?"}}
 - "Buy R50 airtime for myself." -> {"intent": "buy_airtime", "details": {"amount": 50, "recipient": "self"}}
 - "Fetola puo" -> {"intent": "change_language", "details": {}}
 - "Shintsha ulimi" -> {"intent": "change_language", "details": {}}
-- "I want to order food." -> {"intent": "unknown", "details": {}, "reason": "Unsupported action."}
 
 Voice Command: {{{command}}}`
 });

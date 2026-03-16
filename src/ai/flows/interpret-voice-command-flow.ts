@@ -78,9 +78,9 @@ Intents and Keywords:
     * Sesotho: "reka airtime", "reka data"
     * Zulu: "thenga i-airtime", "thenga idata"
 - 'change_language': 
-    * English: "change language", "go back"
-    * Sesotho: "fetola puo"
-    * Zulu: "shintsha ulimi"
+    * English: "change language", "go back", "select language"
+    * Sesotho: "fetola puo", "puo"
+    * Zulu: "shintsha ulimi", "ulimi"
 - 'unknown': If no clear intent is found.
 
 Details extraction:

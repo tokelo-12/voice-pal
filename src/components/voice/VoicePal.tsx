@@ -15,9 +15,9 @@ type SupportedLanguage = 'en-US' | 'zu-ZA' | 'st-ZA';
 
 const INITIAL_CONTACTS: Contact[] = [
   { id: '1', name: 'Mom', phoneNumber: '+27644914275' },
-  { id: '1', name: 'Sindi', phoneNumber: '+27716828358' },
-  { id: '2', name: 'Sello', phoneNumber: '0831234567' },
-  { id: '3', name: 'Emergency', phoneNumber: '112' },
+  { id: '2', name: 'Sindi', phoneNumber: '+27716828358' },
+  { id: '3', name: 'Sello', phoneNumber: '0831234567' },
+  { id: '4', name: 'Emergency', phoneNumber: '112' },
 ];
 
 const SUCCESS_SOUND = 'https://actions.google.com/sounds/v1/alarms/beep_short.ogg';
@@ -106,7 +106,6 @@ export const VoicePal: React.FC = () => {
       const onSpeechEnd = () => {
         setAppState(prev => (prev !== 'success' && prev !== 'error' ? 'idle' : prev));
         if (autoListenAfter) {
-          // Trigger a short delay before listening again to avoid picking up its own audio
           setTimeout(() => {
             if (recognitionRef.current) {
               setAppState('listening');
@@ -122,7 +121,6 @@ export const VoicePal: React.FC = () => {
         audioRef.current.src = audioUrl;
         audioRef.current.onended = onSpeechEnd;
         audioRef.current.onerror = () => {
-          console.warn('Audio play error, falling back to browser synthesis');
           browserFallbackSpeak(text, lang);
           if (autoListenAfter) setTimeout(() => toggleListening(), 1000);
         };
@@ -135,7 +133,6 @@ export const VoicePal: React.FC = () => {
         if (autoListenAfter) setTimeout(() => toggleListening(), 2000);
       }
     } catch (error) {
-      console.error('TTS Flow Error:', error);
       browserFallbackSpeak(text, lang);
       if (autoListenAfter) setTimeout(() => toggleListening(), 2000);
     }
@@ -152,7 +149,7 @@ export const VoicePal: React.FC = () => {
     
     if (lang) {
       let welcome = "";
-      if (lang === 'en-US') welcome = "English selected. Welcome to Voice Pal. Tap the center of the screen or press the space bar to give a command.";
+      if (lang === 'en-US') welcome = "English selected. Welcome to Voice Pal. Tap the screen or press the space bar to give a command.";
       if (lang === 'zu-ZA') welcome = "isiZulu sikhethiwe. Siyakwamukela ku-Voice Pal. Thinta isikrini noma ucindezele i-space bar ukuze ukhulume.";
       if (lang === 'st-ZA') welcome = "Sesotho se khethiloe. Re u amohela ho Voice Pal. Tobetsa skrine kapa o tobetse space bar ho bua.";
       
@@ -231,7 +228,6 @@ export const VoicePal: React.FC = () => {
     setLastActionStatus('idle');
     
     try {
-      // If we're waiting for a specific piece of information (like a message)
       if (pendingAction) {
         if (pendingAction.type === 'sms' && pendingAction.phoneNumber && !pendingAction.message) {
           const smsResult = await initiateAfricaTalkingSms(pendingAction.phoneNumber, text);
@@ -240,7 +236,6 @@ export const VoicePal: React.FC = () => {
             setLastActionStatus('success');
             playFeedbackSound('success');
             setPendingAction(null);
-            
             let msg = `Success! Message sent.`;
             if (selectedLanguage === 'zu-ZA') msg = `Kuphumelele! Umlayezo uthunyelwe.`;
             if (selectedLanguage === 'st-ZA') msg = `Katleho! Molaetsa o rometsoe.`;
@@ -250,7 +245,6 @@ export const VoicePal: React.FC = () => {
             setLastActionStatus('error');
             playFeedbackSound('error');
             setPendingAction(null);
-            
             let msg = `I'm sorry, the message failed to send.`;
             if (selectedLanguage === 'zu-ZA') msg = `Ngiyaxolisa, umlayezo wehlulekile ukuthunyelwa.`;
             if (selectedLanguage === 'st-ZA') msg = `Ke maswabi, molaetsa o hlolehile ho romelloa.`;
@@ -265,8 +259,10 @@ export const VoicePal: React.FC = () => {
       if (result.intent === 'make_call') {
         const contactName = result.details.contactName;
         const matchedContact = contacts.find(c => c.name.toLowerCase() === contactName?.toLowerCase());
-        
-        if (!matchedContact && !result.details.phoneNumber) {
+        const phoneNumber = matchedContact?.phoneNumber || result.details.phoneNumber;
+        const finalName = matchedContact?.name || contactName || "Unknown Contact";
+
+        if (!phoneNumber) {
           setShowContacts(true);
           setPendingAction({ type: 'call' });
           let msg = "Who would you like to call?";
@@ -274,9 +270,6 @@ export const VoicePal: React.FC = () => {
           if (selectedLanguage === 'st-ZA') msg = "O batla ho letsetsa mang?";
           speak(msg, selectedLanguage, true);
         } else {
-          const phoneNumber = matchedContact?.phoneNumber || result.details.phoneNumber || "+27218796297";
-          const finalName = matchedContact?.name || contactName || "Unknown Contact";
-
           let msg = `Certainly. Calling ${finalName} now.`;
           if (selectedLanguage === 'zu-ZA') msg = `Kulungile. Ngishayela u-${finalName} manje.`;
           if (selectedLanguage === 'st-ZA') msg = `Ho lokile. Ke letsetsa ${finalName} hona joale.`;
@@ -312,7 +305,6 @@ export const VoicePal: React.FC = () => {
             setLastActionStatus('success');
             playFeedbackSound('success');
             setPendingAction(null);
-            
             let msg = `Success! Message sent.`;
             if (selectedLanguage === 'zu-ZA') msg = `Kuphumelele! Umlayezo uthunyelwe.`;
             if (selectedLanguage === 'st-ZA') msg = `Katleho! Molaetsa o rometsoe.`;
@@ -322,7 +314,6 @@ export const VoicePal: React.FC = () => {
             setLastActionStatus('error');
             playFeedbackSound('error');
             setPendingAction(null);
-            
             let msg = `I'm sorry, the message failed to send.`;
             if (selectedLanguage === 'zu-ZA') msg = `Ngiyaxolisa, umlayezo wehlulekile ukuthunyelwa.`;
             if (selectedLanguage === 'st-ZA') msg = `Ke maswabi, molaetsa o hlolehile ho romelloa.`;
@@ -347,16 +338,11 @@ export const VoicePal: React.FC = () => {
     }
   }, [selectedLanguage, speak, contacts, playFeedbackSound, pendingAction]);
 
-  // Global Keyboard listener for Space bar
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      // Ignore keyboard shortcuts during active calls
       if (activeCall) return;
-
       if (event.code === 'Space' || event.key === ' ') {
-        // Prevent default browser behavior (like scrolling)
         event.preventDefault();
-        
         if (!selectedLanguage) {
           toggleLanguageListening();
         } else {
@@ -364,7 +350,6 @@ export const VoicePal: React.FC = () => {
         }
       }
     };
-
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [selectedLanguage, activeCall, toggleLanguageListening, toggleListening]);
@@ -384,7 +369,7 @@ export const VoicePal: React.FC = () => {
 
     if (action === 'call' || action === 'contacts') {
       setShowContacts(true);
-      setPendingAction({ type: action === 'call' ? 'call' : 'call' });
+      setPendingAction({ type: 'call' });
       let msg = "Showing your contacts.";
       if (selectedLanguage === 'zu-ZA') msg = "Ngibonisa oxhumana nabo.";
       if (selectedLanguage === 'st-ZA') msg = "Ke u bontša mabitso a hao.";
@@ -404,7 +389,6 @@ export const VoicePal: React.FC = () => {
       else if (selectedLanguage === 'zu-ZA') prompt = "Ufuna i-airtime engakanani?";
       else prompt = "O batla airtime e kae?";
     }
-    
     speak(prompt, selectedLanguage, true);
   };
 
@@ -412,7 +396,6 @@ export const VoicePal: React.FC = () => {
     let msg = `Calling ${contact.name}.`;
     if (selectedLanguage === 'zu-ZA') msg = `Ngishayela u-${contact.name}.`;
     if (selectedLanguage === 'st-ZA') msg = `Ke letsetsa ${contact.name}.`;
-    
     speak(msg, selectedLanguage!);
     setActiveCall({ contact: contact.name });
     initiateAfricaTalkingCall(contact.phoneNumber);
@@ -424,7 +407,6 @@ export const VoicePal: React.FC = () => {
     let msg = `Say your message for ${contact.name}.`;
     if (selectedLanguage === 'zu-ZA') msg = `Khuluma umlayezo wakho we ${contact.name}.`;
     if (selectedLanguage === 'st-ZA') msg = `Bua molaetsa oa hau oa ${contact.name}.`;
-    
     speak(msg, selectedLanguage!, true);
   };
 
@@ -432,7 +414,6 @@ export const VoicePal: React.FC = () => {
     let message = "Call ended.";
     if (selectedLanguage === 'zu-ZA') message = "Ucingo luvaliwe.";
     if (selectedLanguage === 'st-ZA') message = "Mohala o khaotsoe.";
-    
     speak(message, selectedLanguage!);
     setActiveCall(null);
   };
@@ -446,7 +427,6 @@ export const VoicePal: React.FC = () => {
           </h2>
           <p className="text-muted-foreground text-lg">Speak or tap your choice</p>
         </div>
-
         <button
           onClick={toggleLanguageListening}
           className={cn(
@@ -461,125 +441,51 @@ export const VoicePal: React.FC = () => {
             <Mic className="w-20 h-20 text-background" />
           )}
         </button>
-
         <div className="grid grid-cols-1 w-full max-w-md gap-6">
-          <Button 
-            onClick={() => selectLanguage('en-US')}
-            className="h-20 text-2xl font-bold bg-secondary hover:bg-secondary/80 rounded-2xl border-4 border-transparent focus:border-accent"
-          >
-            ENGLISH
-          </Button>
-          <Button 
-            onClick={() => selectLanguage('zu-ZA')}
-            className="h-20 text-2xl font-bold bg-secondary hover:bg-secondary/80 rounded-2xl border-4 border-transparent focus:border-accent"
-          >
-            ISIZULU
-          </Button>
-          <Button 
-            onClick={() => selectLanguage('st-ZA')}
-            className="h-20 text-2xl font-bold bg-secondary hover:bg-secondary/80 rounded-2xl border-4 border-transparent focus:border-accent"
-          >
-            SESOTHO
-          </Button>
+          <Button onClick={() => selectLanguage('en-US')} className="h-20 text-2xl font-bold bg-secondary hover:bg-secondary/80 rounded-2xl border-4 border-transparent focus:border-accent">ENGLISH</Button>
+          <Button onClick={() => selectLanguage('zu-ZA')} className="h-20 text-2xl font-bold bg-secondary hover:bg-secondary/80 rounded-2xl border-4 border-transparent focus:border-accent">ISIZULU</Button>
+          <Button onClick={() => selectLanguage('st-ZA')} className="h-20 text-2xl font-bold bg-secondary hover:bg-secondary/80 rounded-2xl border-4 border-transparent focus:border-accent">SESOTHO</Button>
         </div>
       </div>
     );
   }
 
-  if (activeCall) {
-    return (
-      <CallScreen 
-        contact={activeCall.contact} 
-        onHangUp={handleHangUp} 
-        language={selectedLanguage}
-      />
-    );
-  }
-
-  if (showContacts) {
-    return (
-      <ContactList 
-        contacts={contacts} 
-        onCall={handleContactCall} 
-        onSms={handleContactSms}
-        onBack={() => setShowContacts(false)}
-        language={selectedLanguage}
-        onMicClick={toggleListening}
-        micState={appState}
-      />
-    );
-  }
+  if (activeCall) return <CallScreen contact={activeCall.contact} onHangUp={handleHangUp} language={selectedLanguage} />;
+  if (showContacts) return <ContactList contacts={contacts} onCall={handleContactCall} onSms={handleContactSms} onBack={() => setShowContacts(false)} language={selectedLanguage} onMicClick={toggleListening} micState={appState} />;
 
   return (
     <div className="flex-1 flex flex-col items-center justify-center p-4 relative">
       <div className="absolute top-8 left-8 z-20">
-        <Button
-          variant="outline"
-          size="lg"
-          onClick={() => selectLanguage(null)}
-          className="h-16 px-6 gap-3 text-xl font-bold rounded-2xl border-2 hover:bg-accent hover:text-accent-foreground border-primary/20 bg-background/50 backdrop-blur-sm shadow-lg group"
-        >
+        <Button variant="outline" size="lg" onClick={() => selectLanguage(null)} className="h-16 px-6 gap-3 text-xl font-bold rounded-2xl border-2 hover:bg-accent hover:text-accent-foreground border-primary/20 bg-background/50 backdrop-blur-sm shadow-lg group">
           <ChevronLeft className="w-8 h-8 group-hover:-translate-x-1 transition-transform" />
           BACK
         </Button>
       </div>
-
       <div className="flex-1 flex flex-col items-center justify-center w-full">
         <Blob state={appState} onClick={toggleListening} isSupported={isSupported} />
       </div>
-      
       <div className="w-full max-w-lg grid grid-cols-2 gap-4 mb-32 px-4">
-        <Button
-          onClick={() => handleQuickAction('call')}
-          className="flex flex-col h-28 gap-3 bg-secondary hover:bg-primary/20 border-2 border-primary/10 rounded-[2rem] group"
-        >
+        <Button onClick={() => handleQuickAction('call')} className="flex flex-col h-28 gap-3 bg-secondary hover:bg-primary/20 border-2 border-primary/10 rounded-[2rem] group">
           <Phone className="w-8 h-8 text-primary group-hover:scale-110 transition-transform" />
-          <span className="font-bold text-base uppercase">
-            {selectedLanguage === 'zu-ZA' ? 'SHAYELA' : selectedLanguage === 'st-ZA' ? 'LETSA' : 'CALL'}
-          </span>
+          <span className="font-bold text-base uppercase">{selectedLanguage === 'zu-ZA' ? 'SHAYELA' : selectedLanguage === 'st-ZA' ? 'LETSA' : 'CALL'}</span>
         </Button>
-        <Button
-          onClick={() => handleQuickAction('contacts')}
-          className="flex flex-col h-28 gap-3 bg-secondary hover:bg-primary/20 border-2 border-primary/10 rounded-[2rem] group"
-        >
+        <Button onClick={() => handleQuickAction('contacts')} className="flex flex-col h-28 gap-3 bg-secondary hover:bg-primary/20 border-2 border-primary/10 rounded-[2rem] group">
           <Users className="w-8 h-8 text-primary group-hover:scale-110 transition-transform" />
-          <span className="font-bold text-base uppercase">
-            {selectedLanguage === 'zu-ZA' ? 'OXHUMANA' : selectedLanguage === 'st-ZA' ? 'MABITSO' : 'CONTACTS'}
-          </span>
+          <span className="font-bold text-base uppercase">{selectedLanguage === 'zu-ZA' ? 'OXHUMANA' : selectedLanguage === 'st-ZA' ? 'MABITSO' : 'CONTACTS'}</span>
         </Button>
-        <Button
-          onClick={() => handleQuickAction('sms')}
-          className="flex flex-col h-28 gap-3 bg-secondary hover:bg-primary/20 border-2 border-primary/10 rounded-[2rem] group"
-        >
+        <Button onClick={() => handleQuickAction('sms')} className="flex flex-col h-28 gap-3 bg-secondary hover:bg-primary/20 border-2 border-primary/10 rounded-[2rem] group">
           <MessageSquare className="w-8 h-8 text-primary group-hover:scale-110 transition-transform" />
           <span className="font-bold text-base uppercase">SMS</span>
         </Button>
-        <Button
-          onClick={() => handleQuickAction('airtime')}
-          className="flex flex-col h-28 gap-3 bg-secondary hover:bg-primary/20 border-2 border-primary/10 rounded-[2rem] group"
-        >
+        <Button onClick={() => handleQuickAction('airtime')} className="flex flex-col h-28 gap-3 bg-secondary hover:bg-primary/20 border-2 border-primary/10 rounded-[2rem] group">
           <CreditCard className="w-8 h-8 text-primary group-hover:scale-110 transition-transform" />
           <span className="font-bold text-base uppercase">AIRTIME</span>
         </Button>
       </div>
-
       <div className="fixed bottom-8 w-full max-w-lg px-8">
-        <div className={cn(
-          "backdrop-blur-md rounded-2xl p-4 border transition-all duration-500 shadow-2xl",
-          lastActionStatus === 'success' ? "bg-green-500/10 border-green-500 shadow-[0_0_30px_rgba(34,197,94,0.4)]" :
-          lastActionStatus === 'error' ? "bg-red-500/10 border-red-500 shadow-[0_0_30px_rgba(239,68,68,0.4)]" :
-          "bg-secondary/50 border-border/50"
-        )}>
-          <p className={cn(
-            "text-xs font-semibold uppercase tracking-widest mb-1 transition-colors duration-500",
-            lastActionStatus === 'success' ? "text-green-400" : 
-            lastActionStatus === 'error' ? "text-red-400" : "text-accent"
-          )}>
-            {lastActionStatus === 'success' ? 'Success' : lastActionStatus === 'error' ? 'Failure' : 'Status'}
-          </p>
-          <p className="text-foreground text-base font-medium truncate">
-            {transcript ? `"${transcript}"` : lastActionStatus === 'success' ? "Action complete!" : lastActionStatus === 'error' ? "Action failed" : "Ready for command"}
-          </p>
+        <div className={cn("backdrop-blur-md rounded-2xl p-4 border transition-all duration-500 shadow-2xl", lastActionStatus === 'success' ? "bg-green-500/10 border-green-500 shadow-[0_0_30px_rgba(34,197,94,0.4)]" : lastActionStatus === 'error' ? "bg-red-500/10 border-red-500 shadow-[0_0_30px_rgba(239,68,68,0.4)]" : "bg-secondary/50 border-border/50")}>
+          <p className={cn("text-xs font-semibold uppercase tracking-widest mb-1 transition-colors duration-500", lastActionStatus === 'success' ? "text-green-400" : lastActionStatus === 'error' ? "text-red-400" : "text-accent")}>{lastActionStatus === 'success' ? 'Success' : lastActionStatus === 'error' ? 'Failure' : 'Status'}</p>
+          <p className="text-foreground text-base font-medium truncate">{transcript ? `"${transcript}"` : lastActionStatus === 'success' ? "Action complete!" : lastActionStatus === 'error' ? "Action failed" : "Ready for command"}</p>
         </div>
       </div>
     </div>

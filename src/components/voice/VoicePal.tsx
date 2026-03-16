@@ -43,7 +43,7 @@ export const VoicePal: React.FC = () => {
   const [isListeningForLanguage, setIsListeningForLanguage] = useState(false);
   const [activeCall, setActiveCall] = useState<{ contact: string } | null>(null);
   const [showContacts, setShowContacts] = useState(false);
-  const [contacts] = useState<Contact[]>(INITIAL_CONTACTS);
+  const [contacts, setContacts] = useState<Contact[]>(INITIAL_CONTACTS);
   const [lastActionStatus, setLastActionStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
   
@@ -51,7 +51,6 @@ export const VoicePal: React.FC = () => {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const feedbackAudioRef = useRef<HTMLAudioElement | null>(null);
   const hasSpokenWelcome = useRef(false);
-  const hasSelectedLanguage = useRef(false);
   
   const voiceCache = useRef<Map<string, string>>(new Map());
 
@@ -153,7 +152,6 @@ export const VoicePal: React.FC = () => {
     setPendingAction(null);
     
     if (lang) {
-      hasSelectedLanguage.current = true;
       let welcome = "";
       if (lang === 'en-US') welcome = "English selected. Welcome to Voice Pal. Tap the screen or press the space bar to give a command.";
       if (lang === 'zu-ZA') welcome = "isiZulu sikhethiwe. Siyakwamukela ku-Voice Pal. Thinta isikrini noma ucindezele i-space bar ukuze ukhulume.";
@@ -161,7 +159,6 @@ export const VoicePal: React.FC = () => {
       
       setTimeout(() => speak(welcome, lang), 100);
     } else {
-      hasSelectedLanguage.current = false;
       hasSpokenWelcome.current = false;
       setTimeout(() => speak("Returning to language selection. Please choose English, Zulu, or Sesotho.", "en-US"), 100);
     }
@@ -371,7 +368,7 @@ export const VoicePal: React.FC = () => {
         if (!amount) {
           setPendingAction({ type: 'airtime', phoneNumber });
           let msg = "How much airtime would you like?";
-          if (selectedLanguage === 'zu-ZA') msg = "Ufuna i-airtime engakanani?";
+          if (selectedLanguage === 'zu-ZA') msg = "Ubani ofuna i-airtime engakanani?";
           if (selectedLanguage === 'st-ZA') msg = "O batla airtime e kae?";
           speak(msg, selectedLanguage, true);
         } else {
@@ -486,6 +483,19 @@ export const VoicePal: React.FC = () => {
     speak(msg, selectedLanguage!, true);
   };
 
+  const handleUpdateContact = (updatedContact: Contact) => {
+    setContacts(prev => prev.map(c => c.id === updatedContact.id ? updatedContact : c));
+  };
+
+  const handleDeleteContact = (id: string) => {
+    setContacts(prev => prev.filter(c => c.id !== id));
+  };
+
+  const handleAddContact = (newContact: Omit<Contact, 'id'>) => {
+    const contactWithId = { ...newContact, id: Math.random().toString(36).substr(2, 9) };
+    setContacts(prev => [...prev, contactWithId]);
+  };
+
   const handleHangUp = () => {
     let message = "Call ended.";
     if (selectedLanguage === 'zu-ZA') message = "Ucingo luvaliwe.";
@@ -527,7 +537,23 @@ export const VoicePal: React.FC = () => {
   }
 
   if (activeCall) return <CallScreen contact={activeCall.contact} onHangUp={handleHangUp} language={selectedLanguage} />;
-  if (showContacts) return <ContactList contacts={contacts} onCall={handleContactCall} onSms={handleContactSms} onAirtime={handleContactAirtime} onBack={() => setShowContacts(false)} language={selectedLanguage} onMicClick={toggleListening} micState={appState} />;
+  if (showContacts) {
+    return (
+      <ContactList 
+        contacts={contacts} 
+        onCall={handleContactCall} 
+        onSms={handleContactSms} 
+        onAirtime={handleContactAirtime}
+        onUpdateContact={handleUpdateContact}
+        onDeleteContact={handleDeleteContact}
+        onAddContact={handleAddContact}
+        onBack={() => setShowContacts(false)} 
+        language={selectedLanguage} 
+        onMicClick={toggleListening} 
+        micState={appState} 
+      />
+    );
+  }
 
   return (
     <div className="flex-1 flex flex-col items-center justify-center p-4 relative">

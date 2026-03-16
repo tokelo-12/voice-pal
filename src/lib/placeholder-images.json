@@ -1,3 +1,10 @@
 {
-  "placeholderImages": []
+  "placeholderImages": [
+    {
+      "id": "app-logo",
+      "description": "Minimalist voice assistant logo",
+      "imageUrl": "https://picsum.photos/seed/voicepal/200/200",
+      "imageHint": "voice soundwave"
+    }
+  ]
 }

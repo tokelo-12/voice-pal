@@ -1,8 +1,10 @@
+
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Blob, BlobState } from './Blob';
 import { interpretVoiceCommand } from '@/ai/flows/interpret-voice-command-flow';
+import { tts } from '@/ai/flows/tts-flow';
 import { Button } from '@/components/ui/button';
 import { Mic, ChevronLeft } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -17,7 +19,11 @@ export const VoicePal: React.FC = () => {
   const [isListeningForLanguage, setIsListeningForLanguage] = useState(false);
   
   const recognitionRef = useRef<any>(null);
-  const synthRef = useRef<SpeechSynthesis | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  
+  // In-memory cache for repeated voice responses
+  // Key: "lang:text", Value: "data:audio/wav;base64,..."
+  const voiceCache = useRef<Map<string, string>>(new Map());
 
   // Initialize Speech Services
   useEffect(() => {
@@ -32,26 +38,45 @@ export const VoicePal: React.FC = () => {
       recognitionRef.current.continuous = false;
       recognitionRef.current.interimResults = false;
 
-      synthRef.current = window.speechSynthesis;
+      audioRef.current = new Audio();
     }
   }, []);
 
-  const speak = useCallback((text: string, lang: string = 'en-US') => {
-    if (!synthRef.current) return;
+  const speak = useCallback(async (text: string, lang: SupportedLanguage = 'en-US') => {
+    if (!audioRef.current) return;
     
-    synthRef.current.cancel();
-
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = lang;
-    utterance.onstart = () => setAppState('speaking');
-    utterance.onend = () => setAppState('idle');
-    utterance.onerror = () => setAppState('idle');
+    setAppState('speaking');
+    const cacheKey = `${lang}:${text}`;
     
-    const voices = synthRef.current.getVoices();
-    const preferredVoice = voices.find(v => v.lang.includes(lang.split('-')[0])) || voices[0];
-    if (preferredVoice) utterance.voice = preferredVoice;
+    try {
+      let audioUrl = voiceCache.current.get(cacheKey);
+      
+      if (!audioUrl) {
+        // Fallback to browser TTS for non-English languages if needed, 
+        // but try GenAI TTS first as requested for "AI voice responses"
+        const response = await tts({ text, language: lang });
+        audioUrl = response.media;
+        voiceCache.current.set(cacheKey, audioUrl);
+      }
 
-    synthRef.current.speak(utterance);
+      audioRef.current.src = audioUrl;
+      audioRef.current.onended = () => setAppState('idle');
+      audioRef.current.onerror = () => setAppState('idle');
+      await audioRef.current.play();
+    } catch (error) {
+      console.error('TTS Error:', error);
+      // Browser TTS Fallback
+      if (typeof window !== 'undefined' && window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = lang;
+        utterance.onend = () => setAppState('idle');
+        utterance.onerror = () => setAppState('idle');
+        window.speechSynthesis.speak(utterance);
+      } else {
+        setAppState('idle');
+      }
+    }
   }, []);
 
   const selectLanguage = useCallback((lang: SupportedLanguage | null) => {
@@ -67,7 +92,6 @@ export const VoicePal: React.FC = () => {
       
       setTimeout(() => speak(welcome, lang), 100);
     } else {
-      // If going back to selection
       setTimeout(() => speak("Returning to language selection. Please choose English, Zulu, or Sesotho.", "en-US"), 100);
     }
   }, [speak]);
@@ -77,7 +101,7 @@ export const VoicePal: React.FC = () => {
 
     if (!isListeningForLanguage) {
       setIsListeningForLanguage(true);
-      recognitionRef.current.lang = 'en-US'; // Default to EN for broad recognition of language names
+      recognitionRef.current.lang = 'en-US';
       recognitionRef.current.start();
       
       recognitionRef.current.onresult = (event: any) => {
@@ -86,7 +110,7 @@ export const VoicePal: React.FC = () => {
         
         if (result.includes('english')) {
           selectLanguage('en-US');
-        } else if (result.includes('zulu') || result.includes('zulu')) {
+        } else if (result.includes('zulu')) {
           selectLanguage('zu-ZA');
         } else if (result.includes('sotho') || result.includes('sesotho')) {
           selectLanguage('st-ZA');
@@ -96,16 +120,8 @@ export const VoicePal: React.FC = () => {
         }
       };
 
-      recognitionRef.current.onerror = (event: any) => {
-        setIsListeningForLanguage(false);
-        if (event.error !== 'no-speech') {
-          speak("Voice selection error. Please tap a button instead.", "en-US");
-        }
-      };
-
-      recognitionRef.current.onend = () => {
-        setIsListeningForLanguage(false);
-      };
+      recognitionRef.current.onerror = () => setIsListeningForLanguage(false);
+      recognitionRef.current.onend = () => setIsListeningForLanguage(false);
     } else {
       recognitionRef.current.stop();
       setIsListeningForLanguage(false);
@@ -168,7 +184,6 @@ export const VoicePal: React.FC = () => {
     }
   }, [appState, handleIntent, isSupported, selectedLanguage, speak]);
 
-  // Initial welcome prompt
   useEffect(() => {
     if (!selectedLanguage && isSupported) {
       const timer = setTimeout(() => {
@@ -188,7 +203,6 @@ export const VoicePal: React.FC = () => {
           <p className="text-muted-foreground text-lg">Speak or tap your choice</p>
         </div>
 
-        {/* Central Voice Option for Language Selection */}
         <button
           onClick={toggleLanguageListening}
           className={cn(
@@ -208,21 +222,18 @@ export const VoicePal: React.FC = () => {
           <Button 
             onClick={() => selectLanguage('en-US')}
             className="h-20 text-2xl font-bold bg-secondary hover:bg-secondary/80 rounded-2xl border-4 border-transparent focus:border-accent"
-            aria-label="Select English"
           >
             ENGLISH
           </Button>
           <Button 
             onClick={() => selectLanguage('zu-ZA')}
             className="h-20 text-2xl font-bold bg-secondary hover:bg-secondary/80 rounded-2xl border-4 border-transparent focus:border-accent"
-            aria-label="Khetha isiZulu"
           >
             ISIZULU
           </Button>
           <Button 
             onClick={() => selectLanguage('st-ZA')}
             className="h-20 text-2xl font-bold bg-secondary hover:bg-secondary/80 rounded-2xl border-4 border-transparent focus:border-accent"
-            aria-label="Khetha Sesotho"
           >
             SESOTHO
           </Button>
@@ -233,14 +244,12 @@ export const VoicePal: React.FC = () => {
 
   return (
     <div className="flex-1 flex flex-col items-center justify-center p-4">
-      {/* Back Button */}
       <div className="absolute top-8 left-8">
         <Button
           variant="outline"
           size="lg"
           onClick={() => selectLanguage(null)}
           className="h-16 px-6 gap-3 text-xl font-bold rounded-2xl border-2 hover:bg-accent hover:text-accent-foreground border-primary/20 bg-background/50 backdrop-blur-sm shadow-lg group"
-          aria-label="Go back to language selection"
         >
           <ChevronLeft className="w-8 h-8 group-hover:-translate-x-1 transition-transform" />
           BACK

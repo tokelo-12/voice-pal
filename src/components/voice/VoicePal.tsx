@@ -476,6 +476,14 @@ export const VoicePal: React.FC = () => {
     speak(msg, selectedLanguage!, true);
   };
 
+  const handleContactAirtime = (contact: Contact) => {
+    setPendingAction({ type: 'airtime', phoneNumber: contact.phoneNumber });
+    let msg = `How much airtime would you like to send to ${contact.name}?`;
+    if (selectedLanguage === 'zu-ZA') msg = `Ufuna ukuthumela i-airtime engakanani ku ${contact.name}?`;
+    if (selectedLanguage === 'st-ZA') msg = `O batla ho romela airtime e kae ho ${contact.name}?`;
+    speak(msg, selectedLanguage!, true);
+  };
+
   const handleHangUp = () => {
     let message = "Call ended.";
     if (selectedLanguage === 'zu-ZA') message = "Ucingo luvaliwe.";
@@ -517,7 +525,7 @@ export const VoicePal: React.FC = () => {
   }
 
   if (activeCall) return <CallScreen contact={activeCall.contact} onHangUp={handleHangUp} language={selectedLanguage} />;
-  if (showContacts) return <ContactList contacts={contacts} onCall={handleContactCall} onSms={handleContactSms} onBack={() => setShowContacts(false)} language={selectedLanguage} onMicClick={toggleListening} micState={appState} />;
+  if (showContacts) return <ContactList contacts={contacts} onCall={handleContactCall} onSms={handleContactSms} onAirtime={handleContactAirtime} onBack={() => setShowContacts(false)} language={selectedLanguage} onMicClick={toggleListening} micState={appState} />;
 
   return (
     <div className="flex-1 flex flex-col items-center justify-center p-4 relative">
@@ -532,7 +540,6 @@ export const VoicePal: React.FC = () => {
         <Blob state={appState} onClick={toggleListening} isSupported={isSupported} />
       </div>
 
-      {/* Moved Status Bar into the main flow between Blob and Buttons */}
       <div className="w-full max-w-lg px-8 mb-6 mt-2">
         <div className={cn(
           "backdrop-blur-md rounded-2xl p-4 border transition-all duration-500 shadow-2xl",
@@ -565,11 +572,15 @@ export const VoicePal: React.FC = () => {
         </Button>
         <Button onClick={() => handleQuickAction('sms')} className="flex flex-col h-28 gap-3 bg-secondary hover:bg-primary/20 border-2 border-primary/10 rounded-[2rem] group">
           <MessageSquare className="w-8 h-8 text-primary group-hover:scale-110 transition-transform" />
-          <span className="font-bold text-base uppercase">SMS</span>
+          <span className="font-bold text-base uppercase">
+            {selectedLanguage === 'zu-ZA' ? 'THUMELA SMS' : selectedLanguage === 'st-ZA' ? 'ROMELA SMS' : 'SEND SMS'}
+          </span>
         </Button>
         <Button onClick={() => handleQuickAction('airtime')} className="flex flex-col h-28 gap-3 bg-secondary hover:bg-primary/20 border-2 border-primary/10 rounded-[2rem] group">
           <CreditCard className="w-8 h-8 text-primary group-hover:scale-110 transition-transform" />
-          <span className="font-bold text-base uppercase">AIRTIME</span>
+          <span className="font-bold text-base uppercase">
+            {selectedLanguage === 'zu-ZA' ? 'THENGA I-AIRTIME' : selectedLanguage === 'st-ZA' ? 'REKA AIRTIME' : 'BUY AIRTIME'}
+          </span>
         </Button>
       </div>
     </div>

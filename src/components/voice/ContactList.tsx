@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { User, Phone, MessageSquare, ChevronLeft, Mic, Loader2 } from 'lucide-react';
+import { User, Phone, MessageSquare, ChevronLeft, Mic, Loader2, CreditCard } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
@@ -17,6 +17,7 @@ interface ContactListProps {
   contacts: Contact[];
   onCall: (contact: Contact) => void;
   onSms: (contact: Contact) => void;
+  onAirtime: (contact: Contact) => void;
   onBack: () => void;
   language: 'en-US' | 'zu-ZA' | 'st-ZA';
   onMicClick: () => void;
@@ -27,6 +28,7 @@ export const ContactList: React.FC<ContactListProps> = ({
   contacts, 
   onCall, 
   onSms, 
+  onAirtime,
   onBack,
   language,
   onMicClick,
@@ -56,7 +58,7 @@ export const ContactList: React.FC<ContactListProps> = ({
         </h2>
       </div>
 
-      {/* List - Added padding bottom to account for the large mic button */}
+      {/* List */}
       <ScrollArea className="flex-1 px-6">
         <div className="py-8 pb-48 space-y-6">
           {contacts.map((contact) => (
@@ -78,22 +80,32 @@ export const ContactList: React.FC<ContactListProps> = ({
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="flex flex-col gap-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <Button
+                    onClick={() => onCall(contact)}
+                    variant="default"
+                    className="h-20 rounded-2xl gap-3 text-xl font-bold bg-primary hover:bg-primary/90 shadow-lg"
+                  >
+                    <Phone className="w-8 h-8" />
+                    CALL
+                  </Button>
+                  <Button
+                    onClick={() => onSms(contact)}
+                    variant="secondary"
+                    className="h-20 rounded-2xl gap-3 text-xl font-bold shadow-md"
+                  >
+                    <MessageSquare className="w-8 h-8 text-primary" />
+                    SMS
+                  </Button>
+                </div>
                 <Button
-                  onClick={() => onCall(contact)}
-                  variant="default"
-                  className="h-20 rounded-2xl gap-3 text-xl font-bold bg-primary hover:bg-primary/90 shadow-lg"
+                  onClick={() => onAirtime(contact)}
+                  variant="outline"
+                  className="h-20 rounded-2xl gap-3 text-xl font-bold border-2 border-primary/20 hover:bg-primary/10"
                 >
-                  <Phone className="w-8 h-8" />
-                  CALL
-                </Button>
-                <Button
-                  onClick={() => onSms(contact)}
-                  variant="secondary"
-                  className="h-20 rounded-2xl gap-3 text-xl font-bold shadow-md"
-                >
-                  <MessageSquare className="w-8 h-8 text-primary" />
-                  SMS
+                  <CreditCard className="w-8 h-8 text-primary" />
+                  {language === 'zu-ZA' ? 'THENGA AIRTIME' : language === 'st-ZA' ? 'REKA AIRTIME' : 'BUY AIRTIME'}
                 </Button>
               </div>
             </div>
@@ -108,7 +120,7 @@ export const ContactList: React.FC<ContactListProps> = ({
         </div>
       </ScrollArea>
 
-      {/* Prominent Central Mic Floating Action Button */}
+      {/* Mic FAB */}
       <div className="absolute bottom-8 left-0 right-0 flex justify-center z-30 pointer-events-none">
         <div className="pointer-events-auto">
           <Button
@@ -132,7 +144,6 @@ export const ContactList: React.FC<ContactListProps> = ({
         </div>
       </div>
 
-      {/* Gradient overlay at bottom for better contrast */}
       <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-background to-transparent pointer-events-none z-20" />
     </div>
   );

@@ -19,6 +19,10 @@ const INITIAL_CONTACTS: Contact[] = [
   { id: '3', name: 'Emergency', phoneNumber: '112' },
 ];
 
+// Audio feedback assets
+const SUCCESS_SOUND = 'https://actions.google.com/sounds/v1/alarms/beep_short.ogg';
+const ERROR_SOUND = 'https://actions.google.com/sounds/v1/alarms/bugle_tune.ogg';
+
 export const VoicePal: React.FC = () => {
   const [appState, setAppState] = useState<BlobState>('idle');
   const [transcript, setTranscript] = useState('');
@@ -28,9 +32,11 @@ export const VoicePal: React.FC = () => {
   const [activeCall, setActiveCall] = useState<{ contact: string } | null>(null);
   const [showContacts, setShowContacts] = useState(false);
   const [contacts] = useState<Contact[]>(INITIAL_CONTACTS);
+  const [lastActionStatus, setLastActionStatus] = useState<'idle' | 'success' | 'error'>('idle');
   
   const recognitionRef = useRef<any>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const feedbackAudioRef = useRef<HTMLAudioElement | null>(null);
   
   // In-memory cache for repeated voice responses
   const voiceCache = useRef<Map<string, string>>(new Map());
@@ -49,13 +55,20 @@ export const VoicePal: React.FC = () => {
       recognitionRef.current.interimResults = false;
 
       audioRef.current = new Audio();
+      feedbackAudioRef.current = new Audio();
     }
+  }, []);
+
+  const playFeedbackSound = useCallback((type: 'success' | 'error') => {
+    if (!feedbackAudioRef.current) return;
+    feedbackAudioRef.current.src = type === 'success' ? SUCCESS_SOUND : ERROR_SOUND;
+    feedbackAudioRef.current.play().catch(e => console.warn('Feedback sound blocked', e));
   }, []);
 
   const browserFallbackSpeak = useCallback((text: string, lang: SupportedLanguage) => {
     if (typeof window !== 'undefined' && window.speechSynthesis) {
       window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
+      const utterance = new SynthesisUtterance(text);
       utterance.lang = lang;
       utterance.onend = () => setAppState('idle');
       utterance.onerror = () => setAppState('idle');
@@ -84,7 +97,11 @@ export const VoicePal: React.FC = () => {
 
       if (audioUrl) {
         audioRef.current.src = audioUrl;
-        audioRef.current.onended = () => setAppState('idle');
+        audioRef.current.onended = () => {
+          if (appState !== 'success' && appState !== 'error') {
+            setAppState('idle');
+          }
+        };
         audioRef.current.onerror = () => {
           console.warn('Audio play error, falling back to browser synthesis');
           browserFallbackSpeak(text, lang);
@@ -99,7 +116,7 @@ export const VoicePal: React.FC = () => {
       console.error('TTS Flow Error:', error);
       browserFallbackSpeak(text, lang);
     }
-  }, [browserFallbackSpeak]);
+  }, [browserFallbackSpeak, appState]);
 
   const selectLanguage = useCallback((lang: SupportedLanguage | null) => {
     setSelectedLanguage(lang);
@@ -107,6 +124,7 @@ export const VoicePal: React.FC = () => {
     setTranscript('');
     setActiveCall(null);
     setShowContacts(false);
+    setLastActionStatus('idle');
     
     if (lang) {
       let welcome = "";
@@ -127,20 +145,14 @@ export const VoicePal: React.FC = () => {
       setIsListeningForLanguage(true);
       recognitionRef.current.lang = 'en-US';
       recognitionRef.current.start();
-      
+
       recognitionRef.current.onresult = (event: any) => {
-        const result = event.results[0][0].transcript.toLowerCase();
-        setTranscript(result);
-        
-        if (result.includes('english')) {
-          selectLanguage('en-US');
-        } else if (result.includes('zulu')) {
-          selectLanguage('zu-ZA');
-        } else if (result.includes('sotho') || result.includes('sesotho')) {
-          selectLanguage('st-ZA');
-        } else {
-          speak("I didn't recognize that language. Please say English, Zulu, or Sesotho.", "en-US");
-          setIsListeningForLanguage(false);
+        const text = event.results[0][0].transcript.toLowerCase();
+        if (text.includes('english')) selectLanguage('en-US');
+        else if (text.includes('zulu') || text.includes('isizulu')) selectLanguage('zu-ZA');
+        else if (text.includes('sesotho') || text.includes('sotho')) selectLanguage('st-ZA');
+        else {
+          speak("I didn't catch that. Please say English, Zulu, or Sesotho.", "en-US");
         }
       };
 
@@ -148,13 +160,14 @@ export const VoicePal: React.FC = () => {
       recognitionRef.current.onend = () => setIsListeningForLanguage(false);
     } else {
       recognitionRef.current.stop();
-      setIsListeningForLanguage(false);
     }
-  }, [isListeningForLanguage, isSupported, selectLanguage, speak]);
+  }, [isSupported, isListeningForLanguage, selectLanguage, speak]);
 
   const handleIntent = useCallback(async (text: string) => {
     if (!selectedLanguage) return;
     setAppState('processing');
+    setLastActionStatus('idle');
+    
     try {
       const result = await interpretVoiceCommand({ command: text });
       
@@ -184,11 +197,29 @@ export const VoicePal: React.FC = () => {
           speak("Who would you like to message? Here are your contacts.", selectedLanguage);
         } else if (!message) {
           speak(`What message would you like to send to ${matchedContact?.name || contactName || phoneNumber}?`, selectedLanguage);
-          // Auto-trigger listening for the message after speaking
           setTimeout(() => toggleListening(), 3000);
         } else {
-          speak(`Sending message to ${matchedContact?.name || contactName || phoneNumber} now.`, selectedLanguage);
-          initiateAfricaTalkingSms(phoneNumber, message);
+          const smsResult = await initiateAfricaTalkingSms(phoneNumber, message);
+          
+          if (smsResult.success) {
+            setAppState('success');
+            setLastActionStatus('success');
+            playFeedbackSound('success');
+            speak(`Success! Message sent to ${matchedContact?.name || contactName || phoneNumber}.`, selectedLanguage);
+            setTimeout(() => {
+              setAppState('idle');
+              setLastActionStatus('idle');
+            }, 5000);
+          } else {
+            setAppState('error');
+            setLastActionStatus('error');
+            playFeedbackSound('error');
+            speak("I'm sorry, the message failed to send. Please check your connection.", selectedLanguage);
+            setTimeout(() => {
+              setAppState('idle');
+              setLastActionStatus('idle');
+            }, 5000);
+          }
         }
       } else if (result.intent === 'buy_airtime') {
         speak(`Purchasing ${result.details.amount} Rand airtime for ${result.details.recipient}.`, selectedLanguage);
@@ -199,15 +230,19 @@ export const VoicePal: React.FC = () => {
       }
     } catch (error) {
       setAppState('error');
+      setLastActionStatus('error');
+      playFeedbackSound('error');
       speak("I encountered an error processing your request. Please try again.", selectedLanguage);
+      setTimeout(() => setAppState('idle'), 5000);
     }
-  }, [selectedLanguage, speak, selectLanguage, contacts]);
+  }, [selectedLanguage, speak, selectLanguage, contacts, playFeedbackSound]);
 
   const toggleListening = useCallback(() => {
     if (!recognitionRef.current || !isSupported || !selectedLanguage) return;
 
-    if (appState === 'idle' || appState === 'error') {
+    if (appState === 'idle' || appState === 'error' || appState === 'success') {
       setAppState('listening');
+      setLastActionStatus('idle');
       recognitionRef.current.lang = selectedLanguage;
       recognitionRef.current.start();
       
@@ -222,6 +257,7 @@ export const VoicePal: React.FC = () => {
           speak("I didn't hear anything. Please tap and try again.", selectedLanguage);
         } else {
           setAppState('error');
+          setLastActionStatus('error');
         }
       };
 
@@ -410,10 +446,21 @@ export const VoicePal: React.FC = () => {
       </div>
 
       <div className="fixed bottom-8 w-full max-w-lg px-8">
-        <div className="bg-secondary/50 backdrop-blur-md rounded-2xl p-4 border border-border/50 shadow-2xl">
-          <p className="text-xs font-semibold text-accent uppercase tracking-widest mb-1">Status</p>
+        <div className={cn(
+          "backdrop-blur-md rounded-2xl p-4 border transition-all duration-500 shadow-2xl",
+          lastActionStatus === 'success' ? "bg-green-500/10 border-green-500 shadow-[0_0_30px_rgba(34,197,94,0.4)]" :
+          lastActionStatus === 'error' ? "bg-red-500/10 border-red-500 shadow-[0_0_30px_rgba(239,68,68,0.4)]" :
+          "bg-secondary/50 border-border/50"
+        )}>
+          <p className={cn(
+            "text-xs font-semibold uppercase tracking-widest mb-1 transition-colors duration-500",
+            lastActionStatus === 'success' ? "text-green-400" : 
+            lastActionStatus === 'error' ? "text-red-400" : "text-accent"
+          )}>
+            {lastActionStatus === 'success' ? 'Success' : lastActionStatus === 'error' ? 'Failure' : 'Status'}
+          </p>
           <p className="text-foreground text-base font-medium truncate">
-            {transcript ? `"${transcript}"` : "Ready for command"}
+            {transcript ? `"${transcript}"` : lastActionStatus === 'success' ? "Message sent!" : lastActionStatus === 'error' ? "Action failed" : "Ready for command"}
           </p>
         </div>
       </div>

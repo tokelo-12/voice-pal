@@ -3,14 +3,21 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Blob, BlobState } from './Blob';
 import { CallScreen } from './CallScreen';
+import { ContactList, Contact } from './ContactList';
 import { interpretVoiceCommand } from '@/ai/flows/interpret-voice-command-flow';
 import { tts } from '@/ai/flows/tts-flow';
 import { initiateAfricaTalkingCall } from '@/services/africas-talking';
 import { Button } from '@/components/ui/button';
-import { Mic, ChevronLeft, Phone, MessageSquare, CreditCard } from 'lucide-react';
+import { Mic, ChevronLeft, Phone, MessageSquare, CreditCard, Users } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 type SupportedLanguage = 'en-US' | 'zu-ZA' | 'st-ZA';
+
+const INITIAL_CONTACTS: Contact[] = [
+  { id: '1', name: 'Mom', phoneNumber: '+27218796297' },
+  { id: '2', name: 'Sello', phoneNumber: '0831234567' },
+  { id: '3', name: 'Emergency', phoneNumber: '112' },
+];
 
 export const VoicePal: React.FC = () => {
   const [appState, setAppState] = useState<BlobState>('idle');
@@ -19,6 +26,8 @@ export const VoicePal: React.FC = () => {
   const [selectedLanguage, setSelectedLanguage] = useState<SupportedLanguage | null>(null);
   const [isListeningForLanguage, setIsListeningForLanguage] = useState(false);
   const [activeCall, setActiveCall] = useState<{ contact: string } | null>(null);
+  const [showContacts, setShowContacts] = useState(false);
+  const [contacts] = useState<Contact[]>(INITIAL_CONTACTS);
   
   const recognitionRef = useRef<any>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -84,7 +93,6 @@ export const VoicePal: React.FC = () => {
           browserFallbackSpeak(text, lang);
         });
       } else {
-        // No media returned (likely quota hit), use browser fallback
         browserFallbackSpeak(text, lang);
       }
     } catch (error) {
@@ -98,6 +106,7 @@ export const VoicePal: React.FC = () => {
     setIsListeningForLanguage(false);
     setTranscript('');
     setActiveCall(null);
+    setShowContacts(false);
     
     if (lang) {
       let welcome = "";
@@ -150,13 +159,14 @@ export const VoicePal: React.FC = () => {
       const result = await interpretVoiceCommand({ command: text });
       
       if (result.intent === 'make_call') {
-        const contact = result.details.contactName || result.details.phoneNumber || "Unknown Contact";
-        const phoneNumber = result.details.phoneNumber || "+27218796297"; // Default to test number if not found
+        const contactName = result.details.contactName;
+        // Check if contact exists in our list
+        const matchedContact = contacts.find(c => c.name.toLowerCase() === contactName?.toLowerCase());
+        const phoneNumber = matchedContact?.phoneNumber || result.details.phoneNumber || "+27218796297";
+        const finalName = matchedContact?.name || contactName || "Unknown Contact";
 
-        speak(`Certainly. Calling ${contact} now.`, selectedLanguage);
-        setActiveCall({ contact });
-        
-        // Call Africa's Talking API
+        speak(`Certainly. Calling ${finalName} now.`, selectedLanguage);
+        setActiveCall({ contact: finalName });
         initiateAfricaTalkingCall(phoneNumber);
       } else if (result.intent === 'send_sms') {
         const contact = result.details.contactName || result.details.phoneNumber;
@@ -172,7 +182,7 @@ export const VoicePal: React.FC = () => {
       setAppState('error');
       speak("I encountered an error processing your request. Please try again.", selectedLanguage);
     }
-  }, [selectedLanguage, speak, selectLanguage]);
+  }, [selectedLanguage, speak, selectLanguage, contacts]);
 
   const toggleListening = useCallback(() => {
     if (!recognitionRef.current || !isSupported || !selectedLanguage) return;
@@ -214,8 +224,17 @@ export const VoicePal: React.FC = () => {
     }
   }, [selectedLanguage, isSupported, speak]);
 
-  const handleQuickAction = (action: 'call' | 'sms' | 'airtime') => {
+  const handleQuickAction = (action: 'call' | 'sms' | 'airtime' | 'contacts') => {
     if (!selectedLanguage) return;
+
+    if (action === 'contacts') {
+      setShowContacts(true);
+      let msg = "Showing your contacts.";
+      if (selectedLanguage === 'zu-ZA') msg = "Ngibonisa oxhumana nabo.";
+      if (selectedLanguage === 'st-ZA') msg = "Ke u bontša mabitso a hao.";
+      speak(msg, selectedLanguage);
+      return;
+    }
     
     if (action === 'call') {
       const testNumber = "+27218796297";
@@ -225,8 +244,6 @@ export const VoicePal: React.FC = () => {
       
       speak(message, selectedLanguage);
       setActiveCall({ contact: testNumber });
-      
-      // Call Africa's Talking API
       initiateAfricaTalkingCall(testNumber);
       return;
     }
@@ -236,7 +253,21 @@ export const VoicePal: React.FC = () => {
     if (action === 'airtime') prompt = selectedLanguage === 'en-US' ? "How much airtime would you like?" : selectedLanguage === 'zu-ZA' ? "Ufuna i-airtime engakanani?" : "O batla airtime e kae?";
     
     speak(prompt, selectedLanguage);
-    // Automatically trigger listening after the prompt
+    setTimeout(() => toggleListening(), 2500);
+  };
+
+  const handleContactCall = (contact: Contact) => {
+    speak(`Calling ${contact.name}.`, selectedLanguage!);
+    setActiveCall({ contact: contact.name });
+    initiateAfricaTalkingCall(contact.phoneNumber);
+  };
+
+  const handleContactSms = (contact: Contact) => {
+    let msg = `Say your message for ${contact.name}.`;
+    if (selectedLanguage === 'zu-ZA') msg = `Khuluma umlayezo wakho we ${contact.name}.`;
+    if (selectedLanguage === 'st-ZA') msg = `Bua molaetsa oa hau oa ${contact.name}.`;
+    
+    speak(msg, selectedLanguage!);
     setTimeout(() => toggleListening(), 2500);
   };
 
@@ -298,7 +329,6 @@ export const VoicePal: React.FC = () => {
     );
   }
 
-  // Render Call Screen if a call is active
   if (activeCall) {
     return (
       <CallScreen 
@@ -309,9 +339,20 @@ export const VoicePal: React.FC = () => {
     );
   }
 
+  if (showContacts) {
+    return (
+      <ContactList 
+        contacts={contacts} 
+        onCall={handleContactCall} 
+        onSms={handleContactSms}
+        onBack={() => setShowContacts(false)}
+        language={selectedLanguage}
+      />
+    );
+  }
+
   return (
     <div className="flex-1 flex flex-col items-center justify-center p-4 relative">
-      {/* Top Navigation */}
       <div className="absolute top-8 left-8 z-20">
         <Button
           variant="outline"
@@ -324,40 +365,41 @@ export const VoicePal: React.FC = () => {
         </Button>
       </div>
 
-      {/* Main Interaction Area */}
       <div className="flex-1 flex flex-col items-center justify-center w-full">
         <Blob state={appState} onClick={toggleListening} isSupported={isSupported} />
       </div>
       
-      {/* Quick Action Grid */}
-      <div className="w-full max-w-lg grid grid-cols-3 gap-4 mb-32 px-4">
+      <div className="w-full max-w-lg grid grid-cols-2 gap-4 mb-32 px-4">
         <Button
           onClick={() => handleQuickAction('call')}
-          className="flex flex-col h-32 gap-3 bg-secondary hover:bg-primary/20 border-2 border-primary/10 rounded-3xl group"
-          aria-label="Make a call"
+          className="flex flex-col h-28 gap-3 bg-secondary hover:bg-primary/20 border-2 border-primary/10 rounded-[2rem] group"
         >
-          <Phone className="w-10 h-10 text-primary group-hover:scale-110 transition-transform" />
-          <span className="font-bold text-lg">CALL</span>
+          <Phone className="w-8 h-8 text-primary group-hover:scale-110 transition-transform" />
+          <span className="font-bold text-base">CALL</span>
+        </Button>
+        <Button
+          onClick={() => handleQuickAction('contacts')}
+          className="flex flex-col h-28 gap-3 bg-secondary hover:bg-primary/20 border-2 border-primary/10 rounded-[2rem] group"
+        >
+          <Users className="w-8 h-8 text-primary group-hover:scale-110 transition-transform" />
+          <span className="font-bold text-base">CONTACTS</span>
         </Button>
         <Button
           onClick={() => handleQuickAction('sms')}
-          className="flex flex-col h-32 gap-3 bg-secondary hover:bg-primary/20 border-2 border-primary/10 rounded-3xl group"
-          aria-label="Send SMS"
+          className="flex flex-col h-28 gap-3 bg-secondary hover:bg-primary/20 border-2 border-primary/10 rounded-[2rem] group"
         >
-          <MessageSquare className="w-10 h-10 text-primary group-hover:scale-110 transition-transform" />
-          <span className="font-bold text-lg">SMS</span>
+          <MessageSquare className="w-8 h-8 text-primary group-hover:scale-110 transition-transform" />
+          <span className="font-bold text-base">SMS</span>
         </Button>
         <Button
           onClick={() => handleQuickAction('airtime')}
-          className="flex flex-col h-32 gap-3 bg-secondary hover:bg-primary/20 border-2 border-primary/10 rounded-3xl group"
-          aria-label="Buy airtime"
+          className="flex flex-col h-28 gap-3 bg-secondary hover:bg-primary/20 border-2 border-primary/10 rounded-[2rem] group"
         >
-          <CreditCard className="w-10 h-10 text-primary group-hover:scale-110 transition-transform" />
-          <span className="font-bold text-lg">AIRTIME</span>
+          <CreditCard className="w-8 h-8 text-primary group-hover:scale-110 transition-transform" />
+          <span className="font-bold text-base">AIRTIME</span>
         </Button>
       </div>
 
-      {/* Status Bar */}
       <div className="fixed bottom-8 w-full max-w-lg px-8">
         <div className="bg-secondary/50 backdrop-blur-md rounded-2xl p-4 border border-border/50 shadow-2xl">
           <p className="text-xs font-semibold text-accent uppercase tracking-widest mb-1">Status</p>

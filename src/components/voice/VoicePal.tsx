@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
@@ -6,7 +5,7 @@ import { Blob, BlobState } from './Blob';
 import { interpretVoiceCommand } from '@/ai/flows/interpret-voice-command-flow';
 import { tts } from '@/ai/flows/tts-flow';
 import { Button } from '@/components/ui/button';
-import { Mic, ChevronLeft } from 'lucide-react';
+import { Mic, ChevronLeft, Phone, MessageSquare, CreditCard } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 type SupportedLanguage = 'en-US' | 'zu-ZA' | 'st-ZA';
@@ -22,7 +21,6 @@ export const VoicePal: React.FC = () => {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   
   // In-memory cache for repeated voice responses
-  // Key: "lang:text", Value: "data:audio/wav;base64,..."
   const voiceCache = useRef<Map<string, string>>(new Map());
 
   // Initialize Speech Services
@@ -52,20 +50,17 @@ export const VoicePal: React.FC = () => {
       let audioUrl = voiceCache.current.get(cacheKey);
       
       if (!audioUrl) {
-        // Fallback to browser TTS for non-English languages if needed, 
-        // but try GenAI TTS first as requested for "AI voice responses"
         const response = await tts({ text, language: lang });
         audioUrl = response.media;
         voiceCache.current.set(cacheKey, audioUrl);
       }
 
-      audioRef.current.src = audioUrl;
+      audioRef.current.src = audioUrl!;
       audioRef.current.onended = () => setAppState('idle');
       audioRef.current.onerror = () => setAppState('idle');
       await audioRef.current.play();
     } catch (error) {
       console.error('TTS Error:', error);
-      // Browser TTS Fallback
       if (typeof window !== 'undefined' && window.speechSynthesis) {
         window.speechSynthesis.cancel();
         const utterance = new SpeechSynthesisUtterance(text);
@@ -193,6 +188,19 @@ export const VoicePal: React.FC = () => {
     }
   }, [selectedLanguage, isSupported, speak]);
 
+  const handleQuickAction = (action: 'call' | 'sms' | 'airtime') => {
+    if (!selectedLanguage) return;
+    
+    let prompt = "";
+    if (action === 'call') prompt = selectedLanguage === 'en-US' ? "Who would you like to call?" : selectedLanguage === 'zu-ZA' ? "Ubani ofuna ukumshayela ucingo?" : "O batla ho letsetsa mang?";
+    if (action === 'sms') prompt = selectedLanguage === 'en-US' ? "Who should I message?" : selectedLanguage === 'zu-ZA' ? "Ubani okufanele ngimthumelele umlayezo?" : "Ke thumele molaetsa ho mang?";
+    if (action === 'airtime') prompt = selectedLanguage === 'en-US' ? "How much airtime would you like?" : selectedLanguage === 'zu-ZA' ? "Ufuna i-airtime engakanani?" : "O batla airtime e kae?";
+    
+    speak(prompt, selectedLanguage);
+    // Automatically trigger listening after the prompt
+    setTimeout(() => toggleListening(), 2500);
+  };
+
   if (!selectedLanguage) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center p-6 space-y-12 bg-background min-h-screen">
@@ -243,8 +251,9 @@ export const VoicePal: React.FC = () => {
   }
 
   return (
-    <div className="flex-1 flex flex-col items-center justify-center p-4">
-      <div className="absolute top-8 left-8">
+    <div className="flex-1 flex flex-col items-center justify-center p-4 relative">
+      {/* Top Navigation */}
+      <div className="absolute top-8 left-8 z-20">
         <Button
           variant="outline"
           size="lg"
@@ -256,12 +265,44 @@ export const VoicePal: React.FC = () => {
         </Button>
       </div>
 
-      <Blob state={appState} onClick={toggleListening} isSupported={isSupported} />
+      {/* Main Interaction Area */}
+      <div className="flex-1 flex flex-col items-center justify-center w-full">
+        <Blob state={appState} onClick={toggleListening} isSupported={isSupported} />
+      </div>
       
-      <div className="fixed bottom-12 w-full max-w-lg px-8">
-        <div className="bg-secondary/50 backdrop-blur-md rounded-2xl p-4 border border-border/50">
-          <p className="text-sm font-semibold text-accent uppercase tracking-widest mb-1">Status</p>
-          <p className="text-foreground text-sm font-medium">
+      {/* Quick Action Grid */}
+      <div className="w-full max-w-lg grid grid-cols-3 gap-4 mb-32 px-4">
+        <Button
+          onClick={() => handleQuickAction('call')}
+          className="flex flex-col h-32 gap-3 bg-secondary hover:bg-primary/20 border-2 border-primary/10 rounded-3xl group"
+          aria-label="Make a call"
+        >
+          <Phone className="w-10 h-10 text-primary group-hover:scale-110 transition-transform" />
+          <span className="font-bold text-lg">CALL</span>
+        </Button>
+        <Button
+          onClick={() => handleQuickAction('sms')}
+          className="flex flex-col h-32 gap-3 bg-secondary hover:bg-primary/20 border-2 border-primary/10 rounded-3xl group"
+          aria-label="Send SMS"
+        >
+          <MessageSquare className="w-10 h-10 text-primary group-hover:scale-110 transition-transform" />
+          <span className="font-bold text-lg">SMS</span>
+        </Button>
+        <Button
+          onClick={() => handleQuickAction('airtime')}
+          className="flex flex-col h-32 gap-3 bg-secondary hover:bg-primary/20 border-2 border-primary/10 rounded-3xl group"
+          aria-label="Buy airtime"
+        >
+          <CreditCard className="w-10 h-10 text-primary group-hover:scale-110 transition-transform" />
+          <span className="font-bold text-lg">AIRTIME</span>
+        </Button>
+      </div>
+
+      {/* Status Bar */}
+      <div className="fixed bottom-8 w-full max-w-lg px-8">
+        <div className="bg-secondary/50 backdrop-blur-md rounded-2xl p-4 border border-border/50 shadow-2xl">
+          <p className="text-xs font-semibold text-accent uppercase tracking-widest mb-1">Status</p>
+          <p className="text-foreground text-base font-medium truncate">
             {transcript ? `"${transcript}"` : "Ready for command"}
           </p>
         </div>

@@ -6,7 +6,11 @@ import { CallScreen } from './CallScreen';
 import { ContactList, Contact } from './ContactList';
 import { interpretVoiceCommand } from '@/ai/flows/interpret-voice-command-flow';
 import { tts } from '@/ai/flows/tts-flow';
-import { initiateAfricaTalkingCall, initiateAfricaTalkingSms } from '@/services/africas-talking';
+import { 
+  initiateAfricaTalkingCall, 
+  initiateAfricaTalkingSms, 
+  initiateAfricaTalkingAirtime 
+} from '@/services/africas-talking';
 import { Button } from '@/components/ui/button';
 import { Mic, ChevronLeft, Phone, MessageSquare, CreditCard, Users } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -228,6 +232,7 @@ export const VoicePal: React.FC = () => {
     setLastActionStatus('idle');
     
     try {
+      // Handle pending actions first (like missing SMS message or missing airtime details)
       if (pendingAction) {
         if (pendingAction.type === 'sms' && pendingAction.phoneNumber && !pendingAction.message) {
           const smsResult = await initiateAfricaTalkingSms(pendingAction.phoneNumber, text);
@@ -245,12 +250,38 @@ export const VoicePal: React.FC = () => {
             setLastActionStatus('error');
             playFeedbackSound('error');
             setPendingAction(null);
-            let msg = `I'm sorry, the message failed to send.`;
-            if (selectedLanguage === 'zu-ZA') msg = `Ngiyaxolisa, umlayezo wehlulekile ukuthunyelwa.`;
-            if (selectedLanguage === 'st-ZA') msg = `Ke maswabi, molaetsa o hlolehile ho romelloa.`;
-            speak(msg, selectedLanguage);
+            speak("Failed to send message.", selectedLanguage);
           }
           return;
+        }
+
+        if (pendingAction.type === 'airtime') {
+          // If we were waiting for an amount
+          if (!pendingAction.amount) {
+            const amount = parseFloat(text.replace(/[^0-9.]/g, ''));
+            if (isNaN(amount)) {
+              speak("I didn't get the amount. Please say a number.", selectedLanguage, true);
+              return;
+            }
+            const airtimeResult = await initiateAfricaTalkingAirtime(pendingAction.phoneNumber || '+27644914275', amount);
+            if (airtimeResult.success) {
+              setAppState('success');
+              setLastActionStatus('success');
+              playFeedbackSound('success');
+              setPendingAction(null);
+              let msg = `Airtime of ${amount} Rands sent successfully.`;
+              if (selectedLanguage === 'zu-ZA') msg = `I-airtime ka R${amount} ithunyelwe ngempumelelo.`;
+              if (selectedLanguage === 'st-ZA') msg = `Airtime ea R${amount} e rometsoe ka katleho.`;
+              speak(msg, selectedLanguage);
+            } else {
+              setAppState('error');
+              setLastActionStatus('error');
+              playFeedbackSound('error');
+              setPendingAction(null);
+              speak("Airtime purchase failed.", selectedLanguage);
+            }
+            return;
+          }
         }
       }
 
@@ -258,7 +289,6 @@ export const VoicePal: React.FC = () => {
       
       if (result.intent === 'make_call') {
         const contactName = result.details.contactName;
-        // Improved contact matching: check for fuzzy matches or common variations
         const matchedContact = contacts.find(c => {
           const name = c.name.toLowerCase();
           const target = contactName?.toLowerCase() || '';
@@ -325,17 +355,44 @@ export const VoicePal: React.FC = () => {
             setLastActionStatus('error');
             playFeedbackSound('error');
             setPendingAction(null);
-            let msg = `I'm sorry, the message failed to send.`;
-            if (selectedLanguage === 'zu-ZA') msg = `Ngiyaxolisa, umlayezo wehlulekile ukuthunyelwa.`;
-            if (selectedLanguage === 'st-ZA') msg = `Ke maswabi, molaetsa o hlolehile ho romelloa.`;
-            speak(msg, selectedLanguage);
+            speak("Failed to send message.", selectedLanguage);
           }
         }
       } else if (result.intent === 'buy_airtime') {
-        let msg = `Purchasing airtime.`;
-        if (selectedLanguage === 'zu-ZA') msg = `Ngithenga i-airtime.`;
-        if (selectedLanguage === 'st-ZA') msg = `Ke reka airtime.`;
-        speak(msg, selectedLanguage);
+        const amount = result.details.amount;
+        const recipient = result.details.recipient;
+        
+        let phoneNumber = '+27644914275'; // Default for self
+        if (recipient && recipient !== 'self') {
+          const matchedContact = contacts.find(c => c.name.toLowerCase().includes(recipient.toLowerCase()));
+          if (matchedContact) phoneNumber = matchedContact.phoneNumber;
+        }
+
+        if (!amount) {
+          setPendingAction({ type: 'airtime', phoneNumber });
+          let msg = "How much airtime would you like?";
+          if (selectedLanguage === 'zu-ZA') msg = "Ufuna i-airtime engakanani?";
+          if (selectedLanguage === 'st-ZA') msg = "O batla airtime e kae?";
+          speak(msg, selectedLanguage, true);
+        } else {
+          const airtimeResult = await initiateAfricaTalkingAirtime(phoneNumber, amount);
+          if (airtimeResult.success) {
+            setAppState('success');
+            setLastActionStatus('success');
+            playFeedbackSound('success');
+            setPendingAction(null);
+            let msg = `Airtime of ${amount} Rands sent successfully.`;
+            if (selectedLanguage === 'zu-ZA') msg = `I-airtime ka R${amount} ithunyelwe ngempumelelo.`;
+            if (selectedLanguage === 'st-ZA') msg = `Airtime ea R${amount} e rometsoe ka katleho.`;
+            speak(msg, selectedLanguage);
+          } else {
+            setAppState('error');
+            setLastActionStatus('error');
+            playFeedbackSound('error');
+            setPendingAction(null);
+            speak("Airtime purchase failed.", selectedLanguage);
+          }
+        }
       } else if (result.intent === 'change_language') {
         selectLanguage(null);
       } else {
@@ -345,7 +402,7 @@ export const VoicePal: React.FC = () => {
       setAppState('error');
       setLastActionStatus('error');
       playFeedbackSound('error');
-      speak("I encountered an error processing your request. Please try again.", selectedLanguage, true);
+      speak("Error processing request.", selectedLanguage, true);
     }
   }, [selectedLanguage, speak, contacts, playFeedbackSound, pendingAction]);
 

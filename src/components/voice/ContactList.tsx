@@ -1,9 +1,11 @@
 'use client';
 
 import React from 'react';
-import { User, Phone, MessageSquare, ChevronLeft } from 'lucide-react';
+import { User, Phone, MessageSquare, ChevronLeft, Mic, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { cn } from '@/lib/utils';
+import { BlobState } from './Blob';
 
 export interface Contact {
   id: string;
@@ -17,6 +19,8 @@ interface ContactListProps {
   onSms: (contact: Contact) => void;
   onBack: () => void;
   language: 'en-US' | 'zu-ZA' | 'st-ZA';
+  onMicClick: () => void;
+  micState: BlobState;
 }
 
 export const ContactList: React.FC<ContactListProps> = ({ 
@@ -24,7 +28,9 @@ export const ContactList: React.FC<ContactListProps> = ({
   onCall, 
   onSms, 
   onBack,
-  language 
+  language,
+  onMicClick,
+  micState
 }) => {
   const getTitle = () => {
     if (language === 'zu-ZA') return "OXHUMANA NABO";
@@ -35,19 +41,40 @@ export const ContactList: React.FC<ContactListProps> = ({
   return (
     <div className="flex-1 flex flex-col h-full bg-background animate-in slide-in-from-bottom duration-500">
       {/* Header */}
-      <div className="p-6 border-b border-border/50 flex items-center gap-4 bg-secondary/20 backdrop-blur-md sticky top-0 z-20">
+      <div className="p-6 border-b border-border/50 flex items-center justify-between bg-secondary/20 backdrop-blur-md sticky top-0 z-20">
+        <div className="flex items-center gap-4">
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={onBack}
+            className="h-16 w-16 rounded-2xl border-2 border-primary/20"
+            aria-label="Back to main screen"
+          >
+            <ChevronLeft className="w-10 h-10" />
+          </Button>
+          <h2 className="text-3xl font-black tracking-tighter uppercase text-foreground">
+            {getTitle()}
+          </h2>
+        </div>
+
+        {/* Integrated Mic for Accessibility */}
         <Button
-          variant="outline"
-          size="icon"
-          onClick={onBack}
-          className="h-16 w-16 rounded-2xl border-2 border-primary/20"
-          aria-label="Back to main screen"
+          onClick={onMicClick}
+          className={cn(
+            "h-16 w-16 rounded-full transition-all duration-300 shadow-lg",
+            micState === 'idle' && "bg-primary",
+            micState === 'listening' && "bg-accent animate-pulse scale-110",
+            micState === 'processing' && "bg-primary/50",
+            micState === 'speaking' && "bg-accent/80"
+          )}
+          aria-label="Speak command"
         >
-          <ChevronLeft className="w-10 h-10" />
+          {micState === 'processing' ? (
+            <Loader2 className="w-8 h-8 animate-spin text-background" />
+          ) : (
+            <Mic className={cn("w-8 h-8", micState === 'listening' ? "text-primary" : "text-background")} />
+          )}
         </Button>
-        <h2 className="text-3xl font-black tracking-tighter uppercase text-foreground">
-          {getTitle()}
-        </h2>
       </div>
 
       {/* List */}

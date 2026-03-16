@@ -14,7 +14,7 @@ import { cn } from '@/lib/utils';
 type SupportedLanguage = 'en-US' | 'zu-ZA' | 'st-ZA';
 
 const INITIAL_CONTACTS: Contact[] = [
-  { id: '1', name: 'Mom', phoneNumber: '+27218796297' },
+  { id: '1', name: 'Mom', phoneNumber: '+27644914275' },
   { id: '2', name: 'Sello', phoneNumber: '0831234567' },
   { id: '3', name: 'Emergency', phoneNumber: '112' },
 ];
@@ -162,12 +162,19 @@ export const VoicePal: React.FC = () => {
         const contactName = result.details.contactName;
         // Check if contact exists in our list
         const matchedContact = contacts.find(c => c.name.toLowerCase() === contactName?.toLowerCase());
-        const phoneNumber = matchedContact?.phoneNumber || result.details.phoneNumber || "+27218796297";
-        const finalName = matchedContact?.name || contactName || "Unknown Contact";
+        
+        if (!matchedContact && !result.details.phoneNumber) {
+          // If they just said "call" without a target, show contacts
+          setShowContacts(true);
+          speak("Who would you like to call? Here is your contact list.", selectedLanguage);
+        } else {
+          const phoneNumber = matchedContact?.phoneNumber || result.details.phoneNumber || "+27218796297";
+          const finalName = matchedContact?.name || contactName || "Unknown Contact";
 
-        speak(`Certainly. Calling ${finalName} now.`, selectedLanguage);
-        setActiveCall({ contact: finalName });
-        initiateAfricaTalkingCall(phoneNumber);
+          speak(`Certainly. Calling ${finalName} now.`, selectedLanguage);
+          setActiveCall({ contact: finalName });
+          initiateAfricaTalkingCall(phoneNumber);
+        }
       } else if (result.intent === 'send_sms') {
         const contact = result.details.contactName || result.details.phoneNumber;
         speak(`Sending message to ${contact}. Message content: ${result.details.message}`, selectedLanguage);
@@ -227,24 +234,12 @@ export const VoicePal: React.FC = () => {
   const handleQuickAction = (action: 'call' | 'sms' | 'airtime' | 'contacts') => {
     if (!selectedLanguage) return;
 
-    if (action === 'contacts') {
+    if (action === 'call' || action === 'contacts') {
       setShowContacts(true);
       let msg = "Showing your contacts.";
       if (selectedLanguage === 'zu-ZA') msg = "Ngibonisa oxhumana nabo.";
       if (selectedLanguage === 'st-ZA') msg = "Ke u bontša mabitso a hao.";
       speak(msg, selectedLanguage);
-      return;
-    }
-    
-    if (action === 'call') {
-      const testNumber = "+27218796297";
-      let message = `Calling ${testNumber}`;
-      if (selectedLanguage === 'zu-ZA') message = `Ishaya inombolo ${testNumber}`;
-      if (selectedLanguage === 'st-ZA') message = `Ea letsetsa nomoro ea ${testNumber}`;
-      
-      speak(message, selectedLanguage);
-      setActiveCall({ contact: testNumber });
-      initiateAfricaTalkingCall(testNumber);
       return;
     }
     
@@ -347,6 +342,8 @@ export const VoicePal: React.FC = () => {
         onSms={handleContactSms}
         onBack={() => setShowContacts(false)}
         language={selectedLanguage}
+        onMicClick={toggleListening}
+        micState={appState}
       />
     );
   }

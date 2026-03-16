@@ -42,6 +42,19 @@ export const VoicePal: React.FC = () => {
     }
   }, []);
 
+  const browserFallbackSpeak = useCallback((text: string, lang: SupportedLanguage) => {
+    if (typeof window !== 'undefined' && window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = lang;
+      utterance.onend = () => setAppState('idle');
+      utterance.onerror = () => setAppState('idle');
+      window.speechSynthesis.speak(utterance);
+    } else {
+      setAppState('idle');
+    }
+  }, []);
+
   const speak = useCallback(async (text: string, lang: SupportedLanguage = 'en-US') => {
     if (!audioRef.current) return;
     
@@ -53,28 +66,31 @@ export const VoicePal: React.FC = () => {
       
       if (!audioUrl) {
         const response = await tts({ text, language: lang });
-        audioUrl = response.media;
-        voiceCache.current.set(cacheKey, audioUrl);
+        if (response.media) {
+          audioUrl = response.media;
+          voiceCache.current.set(cacheKey, audioUrl);
+        }
       }
 
-      audioRef.current.src = audioUrl!;
-      audioRef.current.onended = () => setAppState('idle');
-      audioRef.current.onerror = () => setAppState('idle');
-      await audioRef.current.play();
-    } catch (error) {
-      console.error('TTS Error:', error);
-      if (typeof window !== 'undefined' && window.speechSynthesis) {
-        window.speechSynthesis.cancel();
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.lang = lang;
-        utterance.onend = () => setAppState('idle');
-        utterance.onerror = () => setAppState('idle');
-        window.speechSynthesis.speak(utterance);
+      if (audioUrl) {
+        audioRef.current.src = audioUrl;
+        audioRef.current.onended = () => setAppState('idle');
+        audioRef.current.onerror = () => {
+          console.warn('Audio play error, falling back to browser synthesis');
+          browserFallbackSpeak(text, lang);
+        };
+        await audioRef.current.play().catch(() => {
+          browserFallbackSpeak(text, lang);
+        });
       } else {
-        setAppState('idle');
+        // No media returned (likely quota hit), use browser fallback
+        browserFallbackSpeak(text, lang);
       }
+    } catch (error) {
+      console.error('TTS Flow Error:', error);
+      browserFallbackSpeak(text, lang);
     }
-  }, []);
+  }, [browserFallbackSpeak]);
 
   const selectLanguage = useCallback((lang: SupportedLanguage | null) => {
     setSelectedLanguage(lang);

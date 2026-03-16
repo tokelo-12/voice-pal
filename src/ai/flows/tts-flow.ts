@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview This file defines a Genkit flow for Text-to-Speech (TTS) using Gemini.
@@ -32,33 +31,40 @@ const ttsFlow = ai.defineFlow(
     outputSchema: TTSOutputSchema,
   },
   async (input) => {
-    const { media } = await ai.generate({
-      model: googleAI.model('gemini-2.5-flash-preview-tts'),
-      config: {
-        responseModalities: ['AUDIO'],
-        speechConfig: {
-          voiceConfig: {
-            prebuiltVoiceConfig: { voiceName: 'Algenib' },
+    try {
+      const { media } = await ai.generate({
+        model: googleAI.model('gemini-2.5-flash-preview-tts'),
+        config: {
+          responseModalities: ['AUDIO'],
+          speechConfig: {
+            voiceConfig: {
+              prebuiltVoiceConfig: { voiceName: 'Algenib' },
+            },
           },
         },
-      },
-      prompt: input.text,
-    });
+        prompt: input.text,
+      });
 
-    if (!media || !media.url) {
-      throw new Error('No media returned from TTS model');
+      if (!media || !media.url) {
+        throw new Error('No media returned from TTS model');
+      }
+
+      const audioBuffer = Buffer.from(
+        media.url.substring(media.url.indexOf(',') + 1),
+        'base64'
+      );
+
+      const wavBase64 = await toWav(audioBuffer);
+
+      return {
+        media: 'data:audio/wav;base64,' + wavBase64,
+      };
+    } catch (error) {
+      // Gracefully handle quota or API errors by returning empty media
+      // This allows the client to fallback to browser speech synthesis
+      console.error('TTS Generation Error (Quota or API):', error);
+      return { media: '' };
     }
-
-    const audioBuffer = Buffer.from(
-      media.url.substring(media.url.indexOf(',') + 1),
-      'base64'
-    );
-
-    const wavBase64 = await toWav(audioBuffer);
-
-    return {
-      media: 'data:audio/wav;base64,' + wavBase64,
-    };
   }
 );
 

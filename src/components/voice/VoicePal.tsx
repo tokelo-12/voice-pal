@@ -5,6 +5,7 @@ import { Blob, BlobState } from './Blob';
 import { CallScreen } from './CallScreen';
 import { interpretVoiceCommand } from '@/ai/flows/interpret-voice-command-flow';
 import { tts } from '@/ai/flows/tts-flow';
+import { initiateAfricaTalkingCall } from '@/services/africas-talking';
 import { Button } from '@/components/ui/button';
 import { Mic, ChevronLeft, Phone, MessageSquare, CreditCard } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -150,8 +151,13 @@ export const VoicePal: React.FC = () => {
       
       if (result.intent === 'make_call') {
         const contact = result.details.contactName || result.details.phoneNumber || "Unknown Contact";
+        const phoneNumber = result.details.phoneNumber || "+27218796297"; // Default to test number if not found
+
         speak(`Certainly. Calling ${contact} now.`, selectedLanguage);
         setActiveCall({ contact });
+        
+        // Call Africa's Talking API
+        initiateAfricaTalkingCall(phoneNumber);
       } else if (result.intent === 'send_sms') {
         const contact = result.details.contactName || result.details.phoneNumber;
         speak(`Sending message to ${contact}. Message content: ${result.details.message}`, selectedLanguage);
@@ -219,6 +225,9 @@ export const VoicePal: React.FC = () => {
       
       speak(message, selectedLanguage);
       setActiveCall({ contact: testNumber });
+      
+      // Call Africa's Talking API
+      initiateAfricaTalkingCall(testNumber);
       return;
     }
     
